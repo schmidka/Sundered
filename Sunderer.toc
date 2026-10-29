@@ -2,8 +2,6 @@
 ## Title: Sunderer
 ## Notes: A World of Warcraft addon.
 ## Version: 0.1.0
-## SavedVariables: Sunderer
-
-
+## SavedVariables: SundererDB
 Sunderer.lua
-
+Options.lua
