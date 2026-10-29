@@ -2,6 +2,11 @@
 ## Title: Sunderer
 ## Notes: A World of Warcraft addon.
 ## Version: 0.1.0
+## OptionalDeps: Ace3
+## X-Embeds: Ace3
 ## SavedVariables: SundererDB
+#@no-lib-strip@
+embeds.xml
+#@end-no-lib-strip@
 Sunderer.lua
 Options.lua

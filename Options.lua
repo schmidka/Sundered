@@ -1,139 +1,140 @@
-local settingsVersion = 1
+-- this addon
+local Addon = LibStub("AceAddon-3.0"):GetAddon("Sunderer")
+
+-- this module
+local Options = Addon:NewModule("Options")
+Options.callbacks = LibStub("CallbackHandler-1.0"):New(Options)
+
+-- Ace libraries used by this module
+local AceConfig = LibStub("AceConfig-3.0")
+local AceConfigDialog   = LibStub("AceConfigDialog-3.0")
+local AceDB             = LibStub("AceDB-3.0")
+local AceDBOptions      = LibStub("AceDBOptions-3.0")
+
+-- dummy value
+local _
+
+-- Default values for our options
 local defaults = {
-    iconSize = 32,
-    textSize = 12,
-    textPosition = "CENTER",
+    profile = {
+        iconSize = 32,
+        textSize = 12,
+        textPosition = "CENTER",
+    },
 }
 
-if type(SundererDB) ~= "table" then
-    SundererDB = {}
-end
-
-local previousVersion = tonumber(SundererDB.settingsVersion) or 0
-if previousVersion < settingsVersion then
-    if SundererDB.textPosition == nil and SundererDB.textAlignment ~= nil then
-        SundererDB.textPosition = "BELOW"
-    end
-    SundererDB.settingsVersion = settingsVersion
-    SundererDB.textAlignment = nil
-end
-
-local function NormalizeNumber(value, default, minimum, maximum, step)
-    value = tonumber(value)
-    if not value or value ~= value then
-        value = default
-    end
-
-    value = math.max(minimum, math.min(maximum, value))
-    return minimum + math.floor((value - minimum) / step + 0.5) * step
-end
-
-SundererDB.iconSize = NormalizeNumber(SundererDB.iconSize, defaults.iconSize, 16, 64, 2)
-SundererDB.textSize = NormalizeNumber(SundererDB.textSize, defaults.textSize, 8, 24, 1)
-
-local validPositions = {
-    TOPLEFT = true,
-    TOP = true,
-    TOPRIGHT = true,
-    LEFT = true,
-    CENTER = true,
-    RIGHT = true,
-    BOTTOMLEFT = true,
-    BOTTOM = true,
-    BOTTOMRIGHT = true,
-    BELOW = true,
-}
-
-if not validPositions[SundererDB.textPosition] then
-    SundererDB.textPosition = defaults.textPosition
-end
-
-local panel = CreateFrame("Frame")
-panel:SetSize(600, 400)
-
-local function CreateSlider(labelText, option, minimum, maximum, step, y)
-    local label = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    label:SetPoint("TOPLEFT", panel, "TOPLEFT", 20, y)
-    label:SetText(labelText)
-
-    local slider = CreateFrame("Slider", nil, panel)
-    slider:SetSize(260, 18)
-    slider:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 0, -10)
-    slider:SetOrientation("HORIZONTAL")
-    slider:SetMinMaxValues(minimum, maximum)
-    slider:SetValueStep(step)
-    slider:SetObeyStepOnDrag(true)
-    -- slider:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
-
-    local track = slider:CreateTexture(nil, "BACKGROUND")
-    track:SetColorTexture(0.25, 0.25, 0.25, 0.9)
-    track:SetPoint("CENTER")
-    track:SetSize(260, 4)
-
-    local valueText = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-    valueText:SetPoint("LEFT", slider, "RIGHT", 12, 0)
-
-    slider:SetScript("OnValueChanged", function(_, value)
-        value = math.floor(value + 0.5)
-        valueText:SetText(value)
-        SundererDB[option] = value
-        Sunderer.ApplyOptions(SundererDB)
-    end)
-    slider:SetValue(SundererDB[option])
-end
-
-CreateSlider("Icon size", "iconSize", 16, 64, 2, -32)
-CreateSlider("Text size", "textSize", 8, 24, 1, -112)
-
-local positionLabel = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-positionLabel:SetPoint("TOPLEFT", panel, "TOPLEFT", 20, -192)
-positionLabel:SetText("Text position")
-
-local positionButtons = {}
-local positions = {
-    { value = "TOPLEFT", label = "Top left", column = 1, row = 1 },
-    { value = "TOP", label = "Top", column = 2, row = 1 },
-    { value = "TOPRIGHT", label = "Top right", column = 3, row = 1 },
-    { value = "LEFT", label = "Left", column = 1, row = 2 },
-    { value = "CENTER", label = "Center", column = 2, row = 2 },
-    { value = "RIGHT", label = "Right", column = 3, row = 2 },
-    { value = "BOTTOMLEFT", label = "Bottom left", column = 1, row = 3 },
-    { value = "BOTTOM", label = "Bottom", column = 2, row = 3 },
-    { value = "BOTTOMRIGHT", label = "Bottom right", column = 3, row = 3 },
-    { value = "BELOW", label = "Below", column = 1, row = 4 },
-}
-
-local function UpdatePositionButtons()
-    for _, button in ipairs(positionButtons) do
-        button:SetChecked(button.position == SundererDB.textPosition)
+-- Get the current options profile block
+function Options:GetCurrentProfile()
+    if self.db and self.db.profile then
+	    return self.db.profile
+    else 
+        return nil
     end
 end
 
-for _, position in ipairs(positions) do
-    local button = CreateFrame("CheckButton", nil, panel, "UIRadioButtonTemplate")
-    button:SetPoint(
-        "TOPLEFT",
-        positionLabel,
-        "BOTTOMLEFT",
-        (position.column - 1) * 145,
-        -12 - (position.row - 1) * 34
-    )
-    button.position = position.value
-    button:SetScript("OnClick", function(self)
-        SundererDB.textPosition = self.position
-        Sunderer.ApplyOptions(SundererDB)
-        UpdatePositionButtons()
-    end)
+local textPositions = {
+    TOPLEFT = "Top left",
+    TOP = "Top",
+    TOPRIGHT = "Top right",
+    LEFT = "Left",
+    CENTER = "Center",
+    RIGHT = "Right",
+    BOTTOMLEFT = "Bottom left",
+    BOTTOM = "Bottom",
+    BOTTOMRIGHT = "Bottom right",
+    BELOW = "Below",
+}
 
-    local label = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-    label:SetPoint("LEFT", button, "RIGHT", 2, 0)
-    label:SetText(position.label)
-
-    table.insert(positionButtons, button)
+function Options:SetOption(key, value)
+    self.db.profile[key] = value
+	self.callbacks:Fire("Sunderer" .. "_SETTING_CHANGED", key, value)
 end
 
-UpdatePositionButtons()
-Sunderer.ApplyOptions(SundererDB)
+function Options:GetOption(key)
+	return self.db.profile[key]
+end
 
-local category = Settings.RegisterCanvasLayoutCategory(panel, "Sunderer")
-Settings.RegisterAddOnCategory(category)
+function Options:OnInitialize()
+	-- init database
+	self.db = AceDB:New("SundererDB", defaults, "Default")
+
+    -- init options table
+    self.options = {
+        type = "group",
+        name = "Sunderer",
+        args = {
+            display = {
+                type = "group",
+                name = "Display",
+                order = 1,
+                args = {
+                    iconSize = {
+                        type = "range",
+                        name = "Icon size",
+                        desc = "Set the icon width and height.",
+                        min = 16,
+                        max = 64,
+                        step = 2,
+                        order = 1,
+                        get = function()
+                            return self.db.profile.iconSize
+                        end,
+                        set = function(_, value)
+                            self:SetOption("iconSize", value)
+                        end,
+                    },
+                    textSize = {
+                        type = "range",
+                        name = "Text size",
+                        desc = "Set the size of the armor text.",
+                        min = 8,
+                        max = 24,
+                        step = 1,
+                        order = 2,
+                        get = function()
+                            return self.db.profile.textSize
+                        end,
+                        set = function(_, value)
+                            self:SetOption("textSize", value)
+                        end,
+                    },
+                    textPosition = {
+                        type = "select",
+                        name = "Text position",
+                        desc = "Choose an attachment point on the icon or center the text below it.",
+                        values = textPositions,
+                        order = 3,
+                        get = function()
+                            return self.db.profile.textPosition
+                        end,
+                        set = function(_, value)
+                            self:SetOption("textPosition", value)
+                        end,
+                    },
+                },
+            },
+        },
+    }
+
+	-- profile support
+	self.options.args.profile = LibStub:GetLibrary("AceDBOptions-3.0"):GetOptionsTable(self.db)
+    self.options.args.profile.order = 2
+    self.db.RegisterCallback(self, "OnProfileChanged", self.OnProfileChanged)
+    self.db.RegisterCallback(self, "OnProfileCopied", self.OnProfileChanged)
+    self.db.RegisterCallback(self, "OnProfileReset", self.OnProfileChanged)
+
+    -- add options to ace config and the game ui
+	AceConfig:RegisterOptionsTable("Sunderer", self.options)
+	AceConfigDialog:AddToBlizOptions("Sunderer")
+end
+
+function Options:OnEnable()
+end
+
+function Options:OnDisable()
+end
+
+function Options:OnProfileChanged(event, database, newProfileKey)
+	self.db.profile = database.profile
+	Addon:ApplyOptions()
+end

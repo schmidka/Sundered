@@ -1,5 +1,11 @@
-Sunderer = Sunderer or {}
+-- Addon 
+Sunderer = LibStub("AceAddon-3.0"):NewAddon("Sunderer", "AceEvent-3.0", "AceConsole-3.0")
+Sunderer.callbacks = LibStub("CallbackHandler-1.0"):New(Sunderer)
 
+-- Modules
+local Options           = nil
+
+-- Armor values in classic wow. Mobs are divided into 3 armor types. Mage is light, Paladin is medium, Warrior is heavy. The majority of mobs are Paladins. The armor values are indexed by mob level. Some raid bosses have higher values, but frankly this addon isn't about them.
 local armorByType = {
     MAGE = {
         10, 11, 24, 42, 65, 93, 126, 166, 212, 267, 286, 305, 325, 344, 363, 385, 404, 423, 442, 461, 480,
@@ -21,53 +27,84 @@ local armorByType = {
     },
 }
 
+-- Ideally we'd look up mobs by name, but for now assume medium armor.
 local armorValues = armorByType.PALADIN
 
-local icon = CreateFrame("Button", "SundererIcon", UIParent)
-icon:SetSize(32, 32)
-icon:SetPoint("CENTER")
-icon:SetMovable(true)
-icon:EnableMouse(true)
-icon:RegisterForDrag("LeftButton")
-icon:SetScript("OnDragStart", icon.StartMoving)
-icon:SetScript("OnDragStop", icon.StopMovingOrSizing)
+-- Display state
+local icon      = nil
+local armorText = nil
 
-local texture = icon:CreateTexture(nil, "ARTWORK")
-texture:SetAllPoints()
-texture:SetTexture("Interface\\Icons\\Ability_Warrior_Sunder")
+-- Initialization. Called once on UI load.
+function Sunderer:OnInitialize()
+	-- Get modules
+	Options = self:GetModule("Options")
 
-local armorText = icon:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-local fontPath, _, fontFlags = armorText:GetFont()
-local validTextPositions = {
-    TOPLEFT = true,
-    TOP = true,
-    TOPRIGHT = true,
-    LEFT = true,
-    CENTER = true,
-    RIGHT = true,
-    BOTTOMLEFT = true,
-    BOTTOM = true,
-    BOTTOMRIGHT = true,
-    BELOW = true,
-}
+    -- Register option command, if ever we use it
+	self:RegisterChatCommand("sunderer", "ChatCommand")
 
-function Sunderer.ApplyOptions(options)
-    icon:SetSize(options.iconSize, options.iconSize)
-    armorText:SetFont(fontPath, options.textSize, fontFlags)
-    armorText:ClearAllPoints()
+    -- Init the icon with some defaults
+    self.icon = CreateFrame("Button", "SundererIcon", UIParent)
 
-    local position = options.textPosition
-    if not validTextPositions[position] then
-        position = "CENTER"
-    end
-    if position == "BELOW" then
-        armorText:SetPoint("TOP", icon, "BOTTOM", 0, -2)
-        armorText:SetWidth(icon:GetWidth())
-        armorText:SetJustifyH("CENTER")
-        armorText:SetJustifyV("TOP")
+    local texture = self.icon:CreateTexture(nil, "ARTWORK")
+    texture:SetAllPoints()
+    texture:SetTexture("Interface\\Icons\\Ability_Warrior_Sunder")
+
+    self.icon:SetSize(32, 32)
+    self.icon:SetPoint("CENTER")
+    self.icon:SetMovable(true)
+    self.icon:EnableMouse(true)
+    self.icon:RegisterForDrag("LeftButton")
+    self.icon:SetScript("OnDragStart", self.icon.StartMoving)
+    self.icon:SetScript("OnDragStop", self.icon.StopMovingOrSizing)
+
+    self.armorText = self.icon:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+end
+
+function Sunderer:UpdateSetting(event, key, value)
+    -- ignore exactly what setting was changed and just apply everything
+    self:ApplyOptions()
+end
+
+function Sunderer:OnEnable()
+    self:RegisterEvent("PLAYER_TARGET_CHANGED", "UpdateArmor")
+    self:RegisterEvent("PLAYER_ENTERING_WORLD", "UpdateArmor")
+	Options.RegisterCallback(self, "Sunderer_SETTING_CHANGED", "UpdateSetting")
+
+    -- Initialize our icon and text
+    self:ApplyOptions()
+    self:UpdateArmor()
+    self.icon:Show()
+end
+
+function Sunderer:OnDisable()
+    self:UnregisterEvent("PLAYER_TARGET_CHANGED")
+    self:UnregisterEvent("PLAYER_ENTERING_WORLD")
+	Options.UnregisterCallback(self, "Sunderer_SETTING_CHANGED")
+    self.icon:Hide()
+end
+
+function Sunderer:ApplyOptions()
+    -- Try to load the current profile. If the options aren't initalized then this may return nil.
+    local profile = Options:GetCurrentProfile()
+    if not profile then
         return
     end
 
+    -- Set icon and text according to the profile's settings
+    self.icon:SetSize(profile.iconSize, profile.iconSize)
+
+    local fontPath, _, fontFlags = self.armorText:GetFont()
+    self.armorText:SetFont(fontPath, profile.textSize, fontFlags)
+    self.armorText:ClearAllPoints()
+
+    local position = profile.textPosition
+    if position == "BELOW" then
+        self.armorText:SetPoint("TOP", self.icon, "BOTTOM", 0, -2)
+        self.armorText:SetWidth(self.icon:GetWidth())
+        self.armorText:SetJustifyH("CENTER")
+        self.armorText:SetJustifyV("TOP")
+        return
+    end
     local horizontal = position:match("LEFT$") and "LEFT"
         or position:match("RIGHT$") and "RIGHT"
         or "CENTER"
@@ -75,32 +112,30 @@ function Sunderer.ApplyOptions(options)
         or position:match("^BOTTOM") and "BOTTOM"
         or "MIDDLE"
 
-    armorText:SetPoint(position, icon, position)
-    armorText:SetWidth(icon:GetWidth())
-    armorText:SetHeight(icon:GetHeight())
-    armorText:SetJustifyH(horizontal)
-    armorText:SetJustifyV(vertical)
+    self.armorText:SetPoint(position, self.icon, position)
+    self.armorText:SetWidth(self.icon:GetWidth())
+    self.armorText:SetHeight(self.icon:GetHeight())
+    self.armorText:SetJustifyH(horizontal)
+    self.armorText:SetJustifyV(vertical)
 end
 
-local function UpdateArmor()
+function Sunderer:UpdateArmor()
+    if not self.armorText then
+        return
+    end
+
     if not UnitExists("target") then
-        armorText:SetText("")
+        self.armorText:SetText("")
         return
     end
 
     local level = UnitLevel("target")
     if not level or level < 1 then
-        armorText:SetText("")
+        self.armorText:SetText("")
         return
     end
 
-    level = math.min(level, #armorValues)
-    armorText:SetText(armorValues[level] or "")
+    -- Clamp level to [1,63]
+    level = math.max(1, math.min(level, 63))
+    self.armorText:SetText(armorValues[level] or "")
 end
-
-local events = CreateFrame("Frame")
-events:RegisterEvent("PLAYER_TARGET_CHANGED")
-events:RegisterEvent("PLAYER_ENTERING_WORLD")
-events:SetScript("OnEvent", UpdateArmor)
-
-UpdateArmor()
