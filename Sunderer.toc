@@ -9,4 +9,5 @@
 embeds.xml
 #@end-no-lib-strip@
 Sunderer.lua
+Abillities.lua
 Options.lua

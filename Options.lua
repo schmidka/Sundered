@@ -20,6 +20,7 @@ local defaults = {
         iconSize = 32,
         textSize = 12,
         textPosition = "CENTER",
+        sunderArmorRank = 5,
     },
 }
 
@@ -113,12 +114,34 @@ function Options:OnInitialize()
                     },
                 },
             },
+            abilities = {
+                type = "group",
+                name = "Abilities",
+                order = 2,
+                args = {
+                    sunderArmorRank = {
+                        type = "range",
+                        name = "Sunder Armor rank",
+                        desc = "Set the highest rank of Sunder Armor available to your character.",
+                        min = 1,
+                        max = 5,
+                        step = 1,
+                        order = 1,
+                        get = function()
+                            return self.db.profile.sunderArmorRank
+                        end,
+                        set = function(_, value)
+                            self:SetOption("sunderArmorRank", value)
+                        end,
+                    },
+                },
+            },
         },
     }
 
 	-- profile support
 	self.options.args.profile = LibStub:GetLibrary("AceDBOptions-3.0"):GetOptionsTable(self.db)
-    self.options.args.profile.order = 2
+    self.options.args.profile.order = 3
     self.db.RegisterCallback(self, "OnProfileChanged", self.OnProfileChanged)
     self.db.RegisterCallback(self, "OnProfileCopied", self.OnProfileChanged)
     self.db.RegisterCallback(self, "OnProfileReset", self.OnProfileChanged)
