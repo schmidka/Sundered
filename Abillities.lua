@@ -78,29 +78,35 @@ function clamp(value, min, max)
     return math.max(min, math.min(value, max))
 end
 
+-- Returns the estimated armor for a mob at the given level.
 function Abilities:GetArmor(mobName, level)
     level = clamp(level, 1, 63)
     return paladinArmorByLevel[level]
 end
 
-function Abilities:GetMaxHealth(mobName, level)
+-- Returns the estimated maximum health for a mob at the given level.
+function Abilities:GetApproximateMaxHealth(mobName, level)
     level = clamp(level, 1, 63)
     return baseHealthByLevel[level]
 end
 
+-- Returns the armor reduction for a Sunder Armor rank.
 function Abilities:GetSunderArmorValue(rank)
     rank = clamp(rank, 1, 5)
     return sunderArmorByRank[rank]
 end
 
+-- Calculates the fraction of damage prevented by armor.
 function Abilities:ComputeMitigation(armor, attackerLevel)
     return armor / (85 * attackerLevel + 400 + armor)
 end
 
+-- Calculates effective HP for a given target and attacker.
 function Abilities:ComputeEHP(hitPoints, armor, attackerLevel)
     return hitPoints + hitPoints * armor / (85 * attackerLevel + 400)
 end
 
+-- Calculates the effective HP damage from applying Sunder Armor.
 function Abilities:ComputeSunderArmorEHPDamage(rank, attackerLevel, targetHitPoints, targetLevel)
     local armor = self:GetArmor(nil, targetLevel)
     local sunderArmor = self:GetSunderArmorValue(rank)
@@ -110,22 +116,22 @@ function Abilities:ComputeSunderArmorEHPDamage(rank, attackerLevel, targetHitPoi
         - self:ComputeEHP(targetHitPoints, remainingArmor, attackerLevel)
 end
 
+-- Calculates Sunder Armor's effective health damage per hit point of target health.
 function Abilities:ComputeSunderArmorEHPDamageScaling(rank, attackerLevel, targetLevel)
     local armor = self:GetArmor(nil, targetLevel)
     local reducedArmor = math.min(armor, self:GetSunderArmorValue(rank))
     return reducedArmor / (85 * attackerLevel + 400)
 end
 
+-- Creates a CuverObject that maps percent HP to estimated Sunder Armor EHP damage.
 function Abilities:CreateEHPDamageCurve(rank)
-    -- Get current character and target data. Note, target HP data is secret.
+    -- Get current character and target data. We have to approximate health.
     local attackerLevel = UnitLevel("player")
     local targetLevel = UnitLevel("target")
-    local targetMaxHP  = Abilities:GetMaxHealth("", targetLevel)
+    local targetMaxHP  = Abilities:GetApproximateMaxHealth("", targetLevel)
 
-    -- Compute a curve that specifies the EHP damage done by sunder at current HP
+    -- Scale estimated max HP bty estimated sunder damage/HP. Note, lots of estimating.
     local scale = self:ComputeSunderArmorEHPDamageScaling(rank, attackerLevel, targetLevel)
-
-    print("Scale = " .. scale)
     local curve = C_CurveUtil.CreateCurve()
     curve:SetType(Enum.LuaCurveType.Linear)
     curve:AddPoint(0, 0)
@@ -133,6 +139,7 @@ function Abilities:CreateEHPDamageCurve(rank)
     return curve
 end
 
+-- Creates the damage curve for the current target, or returns nil if there is none.
 function Abilities:CreateCurrentSunderArmorEHPDamageCurve(rank)
     if not UnitExists("target") then
         return nil
