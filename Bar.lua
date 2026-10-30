@@ -215,10 +215,14 @@ function Bar:Update()
     )
     local value = UnitHealthPercent("target", true, curve)
     local text = Addon:AbbreviateDamage(value)
-    local comparison = compareAbilities[self.options:GetOption("compareTo")]
-    local compareValue = self.abilities:ComputeExpectedAbilityEHPDamage(
-        self.options:GetOption("compareTo")
-    )
+    local compareTo = self.options:GetOption("compareTo")
+    local comparison = compareAbilities[compareTo]
+    local compareValue
+    if comparison then
+        compareValue = self.abilities:ComputeExpectedAbilityEHPDamagePerRage(
+            compareTo
+        ) * self.abilities:GetAbilityRageCost("SUNDER_ARMOR")
+    end
     local compareIcon = comparison and C_Spell.GetSpellTexture(comparison.spellID)
 
     if self.colorShiftEnabled and comparison then
