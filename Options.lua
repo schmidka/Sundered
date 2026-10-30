@@ -33,9 +33,13 @@ local defaults = {
         barSolidColor = { 0.75, 0.25, 0.25 },
         compareTo = "NONE",
         sunderArmorRank = 5,
+        improvedSunderArmorRank = 0,
+        improvedThunderClapRank = 0,
+        focusedRageRank = 0,
         mortalStrikeRank = 4,
         slamRank = 4,
         shieldSlamRank = 4,
+        thunderClapRank = 6,
     },
 }
 
@@ -78,6 +82,8 @@ local compareToAbilities = {
     MORTAL_STRIKE = "Mortal Strike",
     SLAM = "Slam",
     SHIELD_SLAM = "Shield Slam",
+    WHIRLWIND = "Whirlwind",
+    THUNDER_CLAP = "Thunder Clap",
 }
 
 local function getMediaValues(mediaType)
@@ -415,6 +421,66 @@ function Options:OnInitialize()
                         end,
                         set = function(_, value)
                             self:SetOption("shieldSlamRank", value)
+                        end,
+                    },
+                    thunderClapRank = {
+                        type = "range",
+                        name = "Thunder Clap rank",
+                        desc = "Set the highest rank of Thunder Clap available to your character.",
+                        min = 1,
+                        max = 6,
+                        step = 1,
+                        order = 5,
+                        get = function()
+                            return self.db.profile.thunderClapRank
+                        end,
+                        set = function(_, value)
+                            self:SetOption("thunderClapRank", value)
+                        end,
+                    },
+                    improvedSunderArmorRank = {
+                        type = "range",
+                        name = "Improved Sunder Armor rank",
+                        desc = "Set the rank of the talent that reduces Sunder Armor's Rage cost.",
+                        min = 0,
+                        max = 3,
+                        step = 1,
+                        order = 6,
+                        get = function()
+                            return self.db.profile.improvedSunderArmorRank
+                        end,
+                        set = function(_, value)
+                            self:SetOption("improvedSunderArmorRank", value)
+                        end,
+                    },
+                    focusedRageRank = {
+                        type = "range",
+                        name = "Focused Rage rank",
+                        desc = "Set the rank of the talent that reduces offensive abilities' Rage costs.",
+                        min = 0,
+                        max = 3,
+                        step = 1,
+                        order = 7,
+                        get = function()
+                            return self.db.profile.focusedRageRank
+                        end,
+                        set = function(_, value)
+                            self:SetOption("focusedRageRank", value)
+                        end,
+                    },
+                    improvedThunderClapRank = {
+                        type = "range",
+                        name = "Improved Thunder Clap rank",
+                        desc = "Set the talent rank that reduces Thunder Clap's Rage cost and increases its damage.",
+                        min = 0,
+                        max = 3,
+                        step = 1,
+                        order = 8,
+                        get = function()
+                            return self.db.profile.improvedThunderClapRank
+                        end,
+                        set = function(_, value)
+                            self:SetOption("improvedThunderClapRank", value)
                         end,
                     },
                 },

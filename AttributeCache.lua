@@ -20,7 +20,7 @@ end
 
 -- Update a cached value with a new sample
 local function UpdateAverage(stats, key, sample)
-    if not sample then
+    if sample == nil then
         return
     end
 
@@ -53,14 +53,18 @@ local function CurrentAttackPower()
     return base + positiveBuffs + negativeBuffs
 end
 
-local function CurrentAverageMainHandDamage()
-    local minimumDamage, maximumDamage = UnitDamage("player")
+local function CurrentWeaponDamage()
+    local minimumDamage, maximumDamage, minimumOffHandDamage, maximumOffHandDamage =
+        UnitDamage("player")
     if issecretvalue(minimumDamage) or issecretvalue(maximumDamage)
+        or issecretvalue(minimumOffHandDamage)
+        or issecretvalue(maximumOffHandDamage)
     then
-        return nil
+        return nil, nil
     end
 
-    return (minimumDamage + maximumDamage) / 2
+    return (minimumDamage + maximumDamage) / 2,
+        (minimumOffHandDamage + maximumOffHandDamage) / 2
 end
 
 local function CurrentCritChance()
@@ -105,6 +109,9 @@ function AttributeCache:GetCharacterStats()
         characterStats.averageMainHandDamage = NormalizeSavedAverage(
             characterStats.averageMainHandDamage
         )
+        characterStats.averageOffHandDamage = NormalizeSavedAverage(
+            characterStats.averageOffHandDamage
+        )
         characterStats.critChance = NormalizeSavedAverage(characterStats.critChance)
         self.loadedCharacters[characterKey] = true
     end
@@ -120,7 +127,9 @@ function AttributeCache:Capture()
     end
 
     UpdateAverage(stats, "attackPower", CurrentAttackPower())
-    UpdateAverage(stats, "averageMainHandDamage", CurrentAverageMainHandDamage())
+    local mainHandDamage, offHandDamage = CurrentWeaponDamage()
+    UpdateAverage(stats, "averageMainHandDamage", mainHandDamage)
+    UpdateAverage(stats, "averageOffHandDamage", offHandDamage)
     UpdateAverage(stats, "critChance", CurrentCritChance())
 end
 
@@ -132,6 +141,11 @@ end
 -- Returns the cached average main-hand damage, or zero when unavailable.
 function AttributeCache:GetAverageMainHandDamage()
     return self:GetCharacterStats().averageMainHandDamage or 0
+end
+
+-- Returns the cached average off-hand damage, or zero when unavailable.
+function AttributeCache:GetAverageOffHandDamage()
+    return self:GetCharacterStats().averageOffHandDamage or 0
 end
 
 -- Returns the cached average Crit Chance, or zero when it is unavailable.

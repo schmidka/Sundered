@@ -17,6 +17,12 @@ local compareAbilities = {
     SHIELD_SLAM = {
         spellID = 23922,
     },
+    WHIRLWIND = {
+        spellID = 1680,
+    },
+    THUNDER_CLAP = {
+        spellID = 6343,
+    },
 }
 
 local function createSunderDamageCurve(abilities, rank, targetLevel, attackerLevel)
@@ -210,10 +216,8 @@ function Bar:Update()
     local value = UnitHealthPercent("target", true, curve)
     local text = Addon:AbbreviateDamage(value)
     local comparison = compareAbilities[self.options:GetOption("compareTo")]
-    local profile = self.options:GetCurrentProfile()
     local compareValue = self.abilities:ComputeExpectedAbilityEHPDamage(
-        self.options:GetOption("compareTo"),
-        profile
+        self.options:GetOption("compareTo")
     )
     local compareIcon = comparison and C_Spell.GetSpellTexture(comparison.spellID)
 

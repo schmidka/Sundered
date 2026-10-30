@@ -5,6 +5,10 @@ local Addon = LibStub("AceAddon-3.0"):GetAddon("Sunderer")
 local Abilities = Addon:NewModule("Abilities")
 local AttributeCache = Addon:GetModule("AttributeCache")
 
+local function GetOption(key)
+    return Addon:GetModule("Options"):GetOption(key)
+end
+
 --[[
     A brief overview of mob classes and armor in classic:
 
@@ -97,6 +101,29 @@ local shieldSlamBonusByRank = {
     225, 264, 303, 342,
 }
 
+local thunderClapDamageByRank = {
+    10, 23, 37, 55, 82, 103,
+}
+
+local improvedThunderClapDamageByRank = {
+    [0] = 0,
+    0.4, 0.7, 1,
+}
+
+local improvedThunderClapRageReductionByRank = {
+    0, 1, 2, 4,
+}
+
+local rageCosts = {
+    SUNDER_ARMOR = 15,
+    BLOODTHIRST = 30,
+    MORTAL_STRIKE = 30,
+    SLAM = 15,
+    SHIELD_SLAM = 20,
+    WHIRLWIND = 25,
+    THUNDER_CLAP = 20,
+}
+
 function round(value) 
     return math.floor(value + 0.5)
 end
@@ -156,17 +183,86 @@ function Abilities:ComputeExpectedShieldSlamEHPDamage(rank)
     return applyExpectedCrit(GetShieldBlock() + shieldSlamBonusByRank[rank])
 end
 
+-- Estimates Whirlwind damage using cached main- and off-hand damage.
+function Abilities:ComputeExpectedWhirlwindEHPDamage()
+    local mainHandDamage = AttributeCache:GetAverageMainHandDamage()
+    local offHandDamage = AttributeCache:GetAverageOffHandDamage()
+    return applyExpectedCrit(mainHandDamage + offHandDamage)
+end
+
+-- Estimates Thunder Clap damage using its rank and Improved Thunder Clap talent.
+function Abilities:ComputeExpectedThunderClapEHPDamage(rank, talentRank)
+    rank = clamp(rank, 1, 6)
+    talentRank = clamp(talentRank, 0, 3)
+    local damage = thunderClapDamageByRank[rank]
+        * (1 + improvedThunderClapDamageByRank[talentRank])
+    return applyExpectedCrit(damage)
+end
+
 -- Estimates the selected comparison ability's EHP damage using its configured rank.
-function Abilities:ComputeExpectedAbilityEHPDamage(ability, options)
+function Abilities:ComputeExpectedAbilityEHPDamage(ability)
     if ability == "BLOODTHIRST" then
         return self:ComputeExpectedBloodthirstEHPDamage()
     elseif ability == "MORTAL_STRIKE" then
-        return self:ComputeExpectedMortalStrikeEHPDamage(options.mortalStrikeRank)
+        return self:ComputeExpectedMortalStrikeEHPDamage(
+            GetOption("mortalStrikeRank")
+        )
     elseif ability == "SLAM" then
-        return self:ComputeExpectedSlamEHPDamage(options.slamRank)
+        return self:ComputeExpectedSlamEHPDamage(GetOption("slamRank"))
     elseif ability == "SHIELD_SLAM" then
-        return self:ComputeExpectedShieldSlamEHPDamage(options.shieldSlamRank)
+        return self:ComputeExpectedShieldSlamEHPDamage(
+            GetOption("shieldSlamRank")
+        )
+    elseif ability == "WHIRLWIND" then
+        return self:ComputeExpectedWhirlwindEHPDamage()
+    elseif ability == "THUNDER_CLAP" then
+        return self:ComputeExpectedThunderClapEHPDamage(
+            GetOption("thunderClapRank"),
+            GetOption("improvedThunderClapRank")
+        )
     end
+end
+
+-- Returns an ability's base rage cost after configured talent reductions.
+function Abilities:GetAbilityRageCost(ability)
+    local rageCost = rageCosts[ability]
+    if not rageCost then
+        return nil
+    end
+
+    rageCost = rageCost - GetOption("focusedRageRank")
+    if ability == "SUNDER_ARMOR" then
+        rageCost = rageCost - GetOption("improvedSunderArmorRank")
+    elseif ability == "THUNDER_CLAP" then
+        rageCost = rageCost
+            - improvedThunderClapRageReductionByRank[
+                GetOption("improvedThunderClapRank") + 1
+            ]
+    end
+
+    return math.max(0, rageCost)
+end
+
+-- Returns estimated EHP damage per rage for Sunder Armor or a direct ability.
+function Abilities:ComputeExpectedAbilityEHPDamagePerRage(
+    ability,
+    attackerLevel,
+    targetHitPoints,
+    targetLevel
+)
+    local damage
+    if ability == "SUNDER_ARMOR" then
+        damage = self:ComputeSunderArmorEHPDamage(
+            GetOption("sunderArmorRank"),
+            attackerLevel,
+            targetHitPoints,
+            targetLevel
+        )
+    else
+        damage = self:ComputeExpectedAbilityEHPDamage(ability)
+    end
+
+    return damage / self:GetAbilityRageCost(ability)
 end
 
 -- Calculates the fraction of damage prevented by armor.
