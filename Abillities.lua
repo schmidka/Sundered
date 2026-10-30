@@ -1,3 +1,6 @@
+-- Helper functions for classic combat ability math. Handles estimations for mob HP and armor, as
+-- well math for specific abilities (such as, unsurprisingly, Sunder Armor).
+
 local Addon = LibStub("AceAddon-3.0"):GetAddon("Sunderer")
 local Abilities = Addon:NewModule("Abilities")
 
@@ -10,11 +13,22 @@ local Abilities = Addon:NewModule("Abilities")
     Paladins are the most common and have middle values.
     Mages have the lowest armor.
     
-    Armor is provided in exact lookups, and should be accurate ... if we know the type. Unfortunately, we don't. Functions will simply guess paladin for now.
+    Armor is provided in exact lookups, and should be accurate ... if we know
+    the type. Unfortunately, we don't. Functions will simply guess paladin for
+    now.
 
-    Some bosses have armor values that break this, but since Sunderer primarily cares about leveling and normal mobs and not instanced content -- the Sunder yes/no decision is always going to be yes against Sulfuron -- I am not worried about handling them.
+    Some bosses have armor values that break this, but Sunderer primarily
+    cares about leveling and normal mobs, not instanced content. The Sunder
+    yes/no decision is always going to be yes against Sulfuron, so I am not
+    worried about handling them.
     
-    Health is definitely not exact. Secrecy prevents us from using UnitHealthMax. We have to hardcode some guesses. This is a sloppily generated table of approximate base health for a typical mob at each level. I have done some manual verification and the AI seems to have done a reasonable job, but by its nature these are rough numbers. Mage mobs will have 30% less, high HP mobs like bears will have 20% more, give or take.
+    Health is definitely not exact. Secrecy prevents us from using
+    UnitHealthMax. We have to hardcode some guesses. This is a sloppily
+    generated table of approximate base health for a typical mob at each
+    level. I have done some manual verification and the AI seems to have done
+    a reasonable job, but by its nature these are rough numbers. Mage mobs
+    will have 30% less, high HP mobs like bears will have 20% more, give or
+    take.
 
     Finally, I believe Forever increases these values much like SoD did, since damage is higher.
 

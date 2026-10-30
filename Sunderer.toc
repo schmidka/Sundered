@@ -10,4 +10,6 @@ embeds.xml
 #@end-no-lib-strip@
 Sunderer.lua
 Abillities.lua
+Icon.lua
+Bar.lua
 Options.lua

@@ -6,7 +6,7 @@ local Options = Addon:NewModule("Options")
 Options.callbacks = LibStub("CallbackHandler-1.0"):New(Options)
 
 -- Ace libraries used by this module
-local AceConfig = LibStub("AceConfig-3.0")
+local AceConfig         = LibStub("AceConfig-3.0")
 local AceConfigDialog   = LibStub("AceConfigDialog-3.0")
 local AceDB             = LibStub("AceDB-3.0")
 local AceDBOptions      = LibStub("AceDBOptions-3.0")
