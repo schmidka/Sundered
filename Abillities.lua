@@ -3,6 +3,7 @@
 
 local Addon = LibStub("AceAddon-3.0"):GetAddon("Sunderer")
 local Abilities = Addon:NewModule("Abilities")
+local AttributeCache = Addon:GetModule("AttributeCache")
 
 --[[
     A brief overview of mob classes and armor in classic:
@@ -104,19 +105,9 @@ function clamp(value, min, max)
     return math.max(min, math.min(value, max))
 end
 
-local function getPlayerAttackPower()
-    local attackPower, positiveBuffs, negativeBuffs = UnitAttackPower("player")
-    return attackPower + positiveBuffs + negativeBuffs
-end
-
-local function getPlayerAverageMainHandDamage()
-    local minimumDamage, maximumDamage = UnitDamage("player")
-    return (minimumDamage + maximumDamage) / 2
-end
-
 -- Assumes a successful hit and averages normal damage with double-damage crits.
 local function applyExpectedCrit(damage)
-    return damage * (1 + GetCritChance() / 100)
+    return damage * (1 + AttributeCache:GetCritChance() / 100)
 end
 
 -- Returns the estimated armor for a mob at the given level.
@@ -139,21 +130,24 @@ end
 
 -- Estimates Bloodthirst damage from current attack power and critical strike chance.
 function Abilities:ComputeExpectedBloodthirstEHPDamage()
-    return applyExpectedCrit(getPlayerAttackPower() * 0.45)
+    local attackPower = AttributeCache:GetAttackPower()
+    return applyExpectedCrit(attackPower * 0.45)
 end
 
 -- Estimates Mortal Strike damage using the selected rank and current main-hand damage.
 function Abilities:ComputeExpectedMortalStrikeEHPDamage(rank)
     rank = clamp(rank, 1, 4)
+    local weaponDamage = AttributeCache:GetAverageMainHandDamage()
     return applyExpectedCrit(
-        getPlayerAverageMainHandDamage() + mortalStrikeBonusByRank[rank]
+        weaponDamage + mortalStrikeBonusByRank[rank]
     )
 end
 
 -- Estimates Slam damage using the selected rank and current main-hand damage.
 function Abilities:ComputeExpectedSlamEHPDamage(rank)
     rank = clamp(rank, 1, 4)
-    return applyExpectedCrit(getPlayerAverageMainHandDamage() + slamBonusByRank[rank])
+    local weaponDamage = AttributeCache:GetAverageMainHandDamage()
+    return applyExpectedCrit(weaponDamage + slamBonusByRank[rank])
 end
 
 -- Estimates Shield Slam damage using the selected rank and current shield block value.
