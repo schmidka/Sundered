@@ -425,9 +425,9 @@ function Options:OnInitialize()
 	-- profile support
 	self.options.args.profile = LibStub:GetLibrary("AceDBOptions-3.0"):GetOptionsTable(self.db)
     self.options.args.profile.order = 3
-    self.db.RegisterCallback(self, "OnProfileChanged", self.OnProfileChanged)
-    self.db.RegisterCallback(self, "OnProfileCopied", self.OnProfileChanged)
-    self.db.RegisterCallback(self, "OnProfileReset", self.OnProfileChanged)
+    self.db.RegisterCallback(self, "OnProfileChanged", "OnProfileChanged")
+    self.db.RegisterCallback(self, "OnProfileCopied", "OnProfileChanged")
+    self.db.RegisterCallback(self, "OnProfileReset", "OnProfileChanged")
 
     -- add options to ace config and the game ui
 	AceConfig:RegisterOptionsTable("Sunderer", self.options)
