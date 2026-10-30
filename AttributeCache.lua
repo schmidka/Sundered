@@ -76,6 +76,15 @@ local function CurrentCritChance()
     return critChance
 end
 
+local function CurrentShieldBlock()
+    local shieldBlock = GetShieldBlock()
+    if issecretvalue(shieldBlock) then
+        return nil
+    end
+
+    return shieldBlock
+end
+
 -- Initializes the saved cache and starts listening for stat sampling events.
 function AttributeCache:OnEnable()
     SundererAbilityCache = SundererAbilityCache or {}
@@ -113,6 +122,7 @@ function AttributeCache:GetCharacterStats()
             characterStats.averageOffHandDamage
         )
         characterStats.critChance = NormalizeSavedAverage(characterStats.critChance)
+        characterStats.shieldBlock = NormalizeSavedAverage(characterStats.shieldBlock)
         self.loadedCharacters[characterKey] = true
     end
 
@@ -131,6 +141,7 @@ function AttributeCache:Capture()
     UpdateAverage(stats, "averageMainHandDamage", mainHandDamage)
     UpdateAverage(stats, "averageOffHandDamage", offHandDamage)
     UpdateAverage(stats, "critChance", CurrentCritChance())
+    UpdateAverage(stats, "shieldBlock", CurrentShieldBlock())
 end
 
 -- Returns the cached average Attack Power, or zero when it is unavailable.
@@ -151,4 +162,9 @@ end
 -- Returns the cached average Crit Chance, or zero when it is unavailable.
 function AttributeCache:GetCritChance()
     return self:GetCharacterStats().critChance or 0
+end
+
+-- Returns the cached average Shield Block value, or zero when unavailable.
+function AttributeCache:GetShieldBlock()
+    return self:GetCharacterStats().shieldBlock or 0
 end

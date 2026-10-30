@@ -180,7 +180,9 @@ end
 -- Estimates Shield Slam damage using the selected rank and current shield block value.
 function Abilities:ComputeExpectedShieldSlamEHPDamage(rank)
     rank = clamp(rank, 1, 4)
-    return applyExpectedCrit(GetShieldBlock() + shieldSlamBonusByRank[rank])
+    return applyExpectedCrit(
+        AttributeCache:GetShieldBlock() + shieldSlamBonusByRank[rank]
+    )
 end
 
 -- Estimates Whirlwind damage using cached main- and off-hand damage.
