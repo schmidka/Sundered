@@ -2,7 +2,6 @@ Sunderer = LibStub("AceAddon-3.0"):NewAddon("Sunderer", "AceEvent-3.0", "AceCons
 Sunderer.callbacks = LibStub("CallbackHandler-1.0"):New(Sunderer)
 
 local Options   = nil
-local Abilities = nil
 local Icon      = nil
 local Bar       = nil
 
@@ -36,9 +35,13 @@ table.insert(numberAbbreviationOptions.breakpointData, {
     abbreviationIsGlobal = false,
 })
 
+-- Formats an EHP damage value using Blizzard's localized abbreviation rules.
+function Sunderer:AbbreviateDamage(value)
+    return AbbreviateNumbers(value, numberAbbreviationOptions)
+end
+
 function Sunderer:OnInitialize()
     Options = self:GetModule("Options")
-    Abilities = self:GetModule("Abilities")
     Icon = self:GetModule("Icon")
     Bar = self:GetModule("Bar")
 
@@ -99,6 +102,12 @@ function Sunderer:ApplyOptions()
     Bar:SetFont(profile.font)
     Bar:SetTexture(profile.barTexture)
     Bar:SetIconPosition(profile.barIconPosition)
+    Bar:SetColors(
+        profile.barAboveThresholdColor,
+        profile.barBelowThresholdColor,
+        profile.barSolidColor
+    )
+    Bar:SetColorShiftEnabled(profile.barColorShiftEnabled)
 
     if isBar then
         local iconWidth = profile.barIconPosition == "NONE" and 0 or profile.barHeight
@@ -106,6 +115,16 @@ function Sunderer:ApplyOptions()
     else
         self.displayFrame:SetSize(profile.iconSize, profile.iconSize)
     end
+end
+
+function Sunderer:ResetDisplayPosition()
+    if not self.displayFrame then
+        return
+    end
+
+    self.displayFrame:StopMovingOrSizing()
+    self.displayFrame:ClearAllPoints()
+    self.displayFrame:SetPoint("CENTER")
 end
 
 function Sunderer:Update()
@@ -119,25 +138,6 @@ function Sunderer:Update()
     end
     self.displayFrame:Show()
 
-    local rank = Options:GetOption("sunderArmorRank")
-    local curve = Abilities:CreateCurrentSunderArmorEHPDamageCurve(rank)
-    if not curve then
-        -- This shouldn't happen...
-        Icon:Update("Poop")
-        Bar:Update(0, "Poop", 1)
-        return
-    end
-
-    local sunderEHPDamage = UnitHealthPercent("target", true, curve)
-    local displayText = AbbreviateNumbers(sunderEHPDamage, numberAbbreviationOptions)
-    local targetLevel = UnitLevel("target")
-    local maxHealth = Abilities:GetApproximateMaxHealth("", targetLevel)
-    local scale = Abilities:ComputeSunderArmorEHPDamageScaling(
-        rank,
-        UnitLevel("player"),
-        targetLevel
-    )
-
-    Icon:Update(displayText)
-    Bar:Update(sunderEHPDamage, displayText, scale * maxHealth)
+    Icon:Update()
+    Bar:Update()
 end

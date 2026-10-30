@@ -18,7 +18,7 @@ local _
 -- Default values for our options
 local defaults = {
     profile = {
-        displayMode = "ICON",
+        displayMode = "BAR",
         iconSize = 32,
         textSize = 12,
         textPosition = "CENTER",
@@ -27,7 +27,15 @@ local defaults = {
         barHeight = 20,
         barTexture = "Blizzard",
         barIconPosition = "NONE",
+        barColorShiftEnabled = true,
+        barAboveThresholdColor = { 0, 0.62, 0.45 },
+        barBelowThresholdColor = { 0.8, 0.47, 0.65 },
+        barSolidColor = { 0.75, 0.25, 0.25 },
+        compareTo = "NONE",
         sunderArmorRank = 5,
+        mortalStrikeRank = 4,
+        slamRank = 4,
+        shieldSlamRank = 4,
     },
 }
 
@@ -64,12 +72,39 @@ local barIconPositions = {
     RIGHT = "Right",
 }
 
+local compareToAbilities = {
+    NONE = "None",
+    BLOODTHIRST = "Bloodthirst",
+    MORTAL_STRIKE = "Mortal Strike",
+    SLAM = "Slam",
+    SHIELD_SLAM = "Shield Slam",
+}
+
 local function getMediaValues(mediaType)
     local values = {}
     for _, name in ipairs(LSM:List(mediaType)) do
         values[name] = name
     end
     return values
+end
+
+local function makeBarColorOption(options, name, optionKey, order, colorShifted)
+    return {
+        type = "color",
+        name = name,
+        hasAlpha = false,
+        order = order,
+        disabled = function()
+            return options.db.profile.displayMode ~= "BAR"
+                or options.db.profile.barColorShiftEnabled ~= colorShifted
+        end,
+        get = function()
+            return unpack(options.db.profile[optionKey])
+        end,
+        set = function(_, red, green, blue)
+            options:SetOption(optionKey, { red, green, blue })
+        end,
+    }
 end
 
 function Options:SetOption(key, value)
@@ -95,12 +130,17 @@ function Options:OnInitialize()
                 name = "Display",
                 order = 1,
                 args = {
+                    generalHeader = {
+                        type = "header",
+                        name = "General",
+                        order = 1,
+                    },
                     displayMode = {
                         type = "select",
                         name = "Display mode",
                         desc = "Choose whether to show the estimate as an icon or a bar.",
                         values = displayModes,
-                        order = 1,
+                        order = 2,
                         get = function()
                             return self.db.profile.displayMode
                         end,
@@ -108,22 +148,17 @@ function Options:OnInitialize()
                             self:SetOption("displayMode", value)
                         end,
                     },
-                    iconSize = {
-                        type = "range",
-                        name = "Icon size",
-                        desc = "Set the icon width and height.",
-                        min = 16,
-                        max = 64,
-                        step = 2,
-                        order = 2,
-                        disabled = function()
-                            return self.db.profile.displayMode ~= "ICON"
-                        end,
+                    compareTo = {
+                        type = "select",
+                        name = "Compare To",
+                        desc = "Choose an ability to compare with the Sunder Armor estimate.",
+                        values = compareToAbilities,
+                        order = 3,
                         get = function()
-                            return self.db.profile.iconSize
+                            return self.db.profile.compareTo
                         end,
                         set = function(_, value)
-                            self:SetOption("iconSize", value)
+                            self:SetOption("compareTo", value)
                         end,
                     },
                     textSize = {
@@ -133,7 +168,7 @@ function Options:OnInitialize()
                         min = 8,
                         max = 24,
                         step = 1,
-                        order = 3,
+                        order = 4,
                         get = function()
                             return self.db.profile.textSize
                         end,
@@ -148,7 +183,7 @@ function Options:OnInitialize()
                         values = function()
                             return getMediaValues("font")
                         end,
-                        order = 4,
+                        order = 5,
                         get = function()
                             return self.db.profile.font
                         end,
@@ -156,21 +191,19 @@ function Options:OnInitialize()
                             self:SetOption("font", value)
                         end,
                     },
-                    textPosition = {
-                        type = "select",
-                        name = "Text position",
-                        desc = "Choose an attachment point on the icon or center the text below it.",
-                        values = textPositions,
-                        order = 5,
-                        disabled = function()
-                            return self.db.profile.displayMode ~= "ICON"
+                    resetPosition = {
+                        type = "execute",
+                        name = "Reset display position",
+                        desc = "Move the display back to the center of the screen.",
+                        order = 6,
+                        func = function()
+                            Addon:ResetDisplayPosition()
                         end,
-                        get = function()
-                            return self.db.profile.textPosition
-                        end,
-                        set = function(_, value)
-                            self:SetOption("textPosition", value)
-                        end,
+                    },
+                    barHeader = {
+                        type = "header",
+                        name = "Bar",
+                        order = 7,
                     },
                     barWidth = {
                         type = "range",
@@ -179,7 +212,7 @@ function Options:OnInitialize()
                         min = 80,
                         max = 400,
                         step = 10,
-                        order = 6,
+                        order = 8,
                         disabled = function()
                             return self.db.profile.displayMode ~= "BAR"
                         end,
@@ -197,7 +230,7 @@ function Options:OnInitialize()
                         min = 8,
                         max = 48,
                         step = 2,
-                        order = 7,
+                        order = 9,
                         disabled = function()
                             return self.db.profile.displayMode ~= "BAR"
                         end,
@@ -208,12 +241,30 @@ function Options:OnInitialize()
                             self:SetOption("barHeight", value)
                         end,
                     },
+                    barTexture = {
+                        type = "select",
+                        name = "Bar texture",
+                        desc = "Choose the texture used to fill the display bar.",
+                        values = function()
+                            return getMediaValues("statusbar")
+                        end,
+                        order = 10,
+                        disabled = function()
+                            return self.db.profile.displayMode ~= "BAR"
+                        end,
+                        get = function()
+                            return self.db.profile.barTexture
+                        end,
+                        set = function(_, value)
+                            self:SetOption("barTexture", value)
+                        end,
+                    },
                     barIconPosition = {
                         type = "select",
                         name = "Bar icon",
                         desc = "Optionally attach the Sunder Armor icon to either end of the bar.",
                         values = barIconPositions,
-                        order = 9,
+                        order = 11,
                         disabled = function()
                             return self.db.profile.displayMode ~= "BAR"
                         end,
@@ -224,22 +275,79 @@ function Options:OnInitialize()
                             self:SetOption("barIconPosition", value)
                         end,
                     },
-                    barTexture = {
-                        type = "select",
-                        name = "Bar texture",
-                        desc = "Choose the texture used to fill the display bar.",
-                        values = function()
-                            return getMediaValues("statusbar")
-                        end,
-                        order = 8,
+                    barColorShiftEnabled = {
+                        type = "toggle",
+                        name = "Color shift",
+                        desc = "Shift the bar color based on its value relative to Compare To.",
+                        order = 12,
                         disabled = function()
                             return self.db.profile.displayMode ~= "BAR"
                         end,
                         get = function()
-                            return self.db.profile.barTexture
+                            return self.db.profile.barColorShiftEnabled
                         end,
                         set = function(_, value)
-                            self:SetOption("barTexture", value)
+                            self:SetOption("barColorShiftEnabled", value)
+                        end,
+                    },
+                    barAboveThresholdColor = makeBarColorOption(
+                        self,
+                        "Above-threshold color",
+                        "barAboveThresholdColor",
+                        13,
+                        true
+                    ),
+                    barBelowThresholdColor = makeBarColorOption(
+                        self,
+                        "Below-threshold color",
+                        "barBelowThresholdColor",
+                        14,
+                        true
+                    ),
+                    barSolidColor = makeBarColorOption(
+                        self,
+                        "Solid bar color",
+                        "barSolidColor",
+                        15,
+                        false
+                    ),
+                    iconHeader = {
+                        type = "header",
+                        name = "Icon",
+                        order = 16,
+                    },
+                    iconSize = {
+                        type = "range",
+                        name = "Icon size",
+                        desc = "Set the icon width and height.",
+                        min = 16,
+                        max = 64,
+                        step = 2,
+                        order = 17,
+                        disabled = function()
+                            return self.db.profile.displayMode ~= "ICON"
+                        end,
+                        get = function()
+                            return self.db.profile.iconSize
+                        end,
+                        set = function(_, value)
+                            self:SetOption("iconSize", value)
+                        end,
+                    },
+                    textPosition = {
+                        type = "select",
+                        name = "Text position",
+                        desc = "Choose an attachment point on the icon or center the text below it.",
+                        values = textPositions,
+                        order = 18,
+                        disabled = function()
+                            return self.db.profile.displayMode ~= "ICON"
+                        end,
+                        get = function()
+                            return self.db.profile.textPosition
+                        end,
+                        set = function(_, value)
+                            self:SetOption("textPosition", value)
                         end,
                     },
                 },
@@ -262,6 +370,51 @@ function Options:OnInitialize()
                         end,
                         set = function(_, value)
                             self:SetOption("sunderArmorRank", value)
+                        end,
+                    },
+                    mortalStrikeRank = {
+                        type = "range",
+                        name = "Mortal Strike rank",
+                        desc = "Set the highest rank of Mortal Strike available to your character.",
+                        min = 1,
+                        max = 4,
+                        step = 1,
+                        order = 2,
+                        get = function()
+                            return self.db.profile.mortalStrikeRank
+                        end,
+                        set = function(_, value)
+                            self:SetOption("mortalStrikeRank", value)
+                        end,
+                    },
+                    slamRank = {
+                        type = "range",
+                        name = "Slam rank",
+                        desc = "Set the highest rank of Slam available to your character.",
+                        min = 1,
+                        max = 4,
+                        step = 1,
+                        order = 3,
+                        get = function()
+                            return self.db.profile.slamRank
+                        end,
+                        set = function(_, value)
+                            self:SetOption("slamRank", value)
+                        end,
+                    },
+                    shieldSlamRank = {
+                        type = "range",
+                        name = "Shield Slam rank",
+                        desc = "Set the highest rank of Shield Slam available to your character.",
+                        min = 1,
+                        max = 4,
+                        step = 1,
+                        order = 4,
+                        get = function()
+                            return self.db.profile.shieldSlamRank
+                        end,
+                        set = function(_, value)
+                            self:SetOption("shieldSlamRank", value)
                         end,
                     },
                 },

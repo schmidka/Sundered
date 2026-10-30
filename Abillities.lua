@@ -84,12 +84,39 @@ local sunderArmorByRank = {
     90, 180, 270, 360, 450,
 }
 
+local mortalStrikeBonusByRank = {
+    85, 110, 135, 160,
+}
+
+local slamBonusByRank = {
+    32, 43, 68, 87,
+}
+
+local shieldSlamBonusByRank = {
+    225, 264, 303, 342,
+}
+
 function round(value) 
     return math.floor(value + 0.5)
 end
 
 function clamp(value, min, max)
     return math.max(min, math.min(value, max))
+end
+
+local function getPlayerAttackPower()
+    local attackPower, positiveBuffs, negativeBuffs = UnitAttackPower("player")
+    return attackPower + positiveBuffs + negativeBuffs
+end
+
+local function getPlayerAverageMainHandDamage()
+    local minimumDamage, maximumDamage = UnitDamage("player")
+    return (minimumDamage + maximumDamage) / 2
+end
+
+-- Assumes a successful hit and averages normal damage with double-damage crits.
+local function applyExpectedCrit(damage)
+    return damage * (1 + GetCritChance() / 100)
 end
 
 -- Returns the estimated armor for a mob at the given level.
@@ -108,6 +135,44 @@ end
 function Abilities:GetSunderArmorValue(rank)
     rank = clamp(rank, 1, 5)
     return sunderArmorByRank[rank]
+end
+
+-- Estimates Bloodthirst damage from current attack power and critical strike chance.
+function Abilities:ComputeExpectedBloodthirstEHPDamage()
+    return applyExpectedCrit(getPlayerAttackPower() * 0.45)
+end
+
+-- Estimates Mortal Strike damage using the selected rank and current main-hand damage.
+function Abilities:ComputeExpectedMortalStrikeEHPDamage(rank)
+    rank = clamp(rank, 1, 4)
+    return applyExpectedCrit(
+        getPlayerAverageMainHandDamage() + mortalStrikeBonusByRank[rank]
+    )
+end
+
+-- Estimates Slam damage using the selected rank and current main-hand damage.
+function Abilities:ComputeExpectedSlamEHPDamage(rank)
+    rank = clamp(rank, 1, 4)
+    return applyExpectedCrit(getPlayerAverageMainHandDamage() + slamBonusByRank[rank])
+end
+
+-- Estimates Shield Slam damage using the selected rank and current shield block value.
+function Abilities:ComputeExpectedShieldSlamEHPDamage(rank)
+    rank = clamp(rank, 1, 4)
+    return applyExpectedCrit(GetShieldBlock() + shieldSlamBonusByRank[rank])
+end
+
+-- Estimates the selected comparison ability's EHP damage using its configured rank.
+function Abilities:ComputeExpectedAbilityEHPDamage(ability, options)
+    if ability == "BLOODTHIRST" then
+        return self:ComputeExpectedBloodthirstEHPDamage()
+    elseif ability == "MORTAL_STRIKE" then
+        return self:ComputeExpectedMortalStrikeEHPDamage(options.mortalStrikeRank)
+    elseif ability == "SLAM" then
+        return self:ComputeExpectedSlamEHPDamage(options.slamRank)
+    elseif ability == "SHIELD_SLAM" then
+        return self:ComputeExpectedShieldSlamEHPDamage(options.shieldSlamRank)
+    end
 end
 
 -- Calculates the fraction of damage prevented by armor.
@@ -135,28 +200,4 @@ function Abilities:ComputeSunderArmorEHPDamageScaling(rank, attackerLevel, targe
     local armor = self:GetArmor(nil, targetLevel)
     local reducedArmor = math.min(armor, self:GetSunderArmorValue(rank))
     return reducedArmor / (85 * attackerLevel + 400)
-end
-
--- Creates a CuverObject that maps percent HP to estimated Sunder Armor EHP damage.
-function Abilities:CreateEHPDamageCurve(rank)
-    -- Get current character and target data. We have to approximate health.
-    local attackerLevel = UnitLevel("player")
-    local targetLevel = UnitLevel("target")
-    local targetMaxHP  = Abilities:GetApproximateMaxHealth("", targetLevel)
-
-    -- Scale estimated max HP bty estimated sunder damage/HP. Note, lots of estimating.
-    local scale = self:ComputeSunderArmorEHPDamageScaling(rank, attackerLevel, targetLevel)
-    local curve = C_CurveUtil.CreateCurve()
-    curve:SetType(Enum.LuaCurveType.Linear)
-    curve:AddPoint(0, 0)
-    curve:AddPoint(1, scale * targetMaxHP)
-    return curve
-end
-
--- Creates the damage curve for the current target, or returns nil if there is none.
-function Abilities:CreateCurrentSunderArmorEHPDamageCurve(rank)
-    if not UnitExists("target") then
-        return nil
-    end
-    return self:CreateEHPDamageCurve(rank)
 end

@@ -4,9 +4,25 @@ local Addon = LibStub("AceAddon-3.0"):GetAddon("Sunderer")
 local Icon = Addon:NewModule("Icon")
 local LSM = LibStub("LibSharedMedia-3.0")
 
+local function createSunderDamageCurve(abilities, rank, targetLevel, attackerLevel)
+    local maxHealth = abilities:GetApproximateMaxHealth("", targetLevel)
+    local scale = abilities:ComputeSunderArmorEHPDamageScaling(
+        rank,
+        attackerLevel,
+        targetLevel
+    )
+    local curve = C_CurveUtil.CreateCurve()
+    curve:SetType(Enum.LuaCurveType.Linear)
+    curve:AddPoint(0, 0)
+    curve:AddPoint(1, scale * maxHealth)
+    return curve
+end
+
 -- Creates the draggable icon and its text.
 function Icon:Initialize(parent)
     self.parent = parent
+    self.options = Addon:GetModule("Options")
+    self.abilities = Addon:GetModule("Abilities")
     self.frame = CreateFrame("Button", "SundererIcon", parent)
 
     local texture = self.frame:CreateTexture(nil, "ARTWORK")
@@ -72,6 +88,16 @@ function Icon:SetTextPosition(position)
 end
 
 -- Updates the displayed text.
-function Icon:Update(text)
-    self.text:SetText(text)
+function Icon:Update()
+    local rank = self.options:GetOption("sunderArmorRank")
+    local targetLevel = UnitLevel("target")
+    local attackerLevel = UnitLevel("player")
+    local curve = createSunderDamageCurve(
+        self.abilities,
+        rank,
+        targetLevel,
+        attackerLevel
+    )
+    local value = UnitHealthPercent("target", true, curve)
+    self.text:SetText(Addon:AbbreviateDamage(value))
 end
