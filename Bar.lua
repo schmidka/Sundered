@@ -4,23 +4,38 @@ local Addon = LibStub("AceAddon-3.0"):GetAddon("Sunderer")
 local Bar = Addon:NewModule("Bar")
 local LSM = LibStub("LibSharedMedia-3.0")
 
+local compareAbilityOrder = {
+    "BLOODTHIRST",
+    "MORTAL_STRIKE",
+    "SLAM",
+    "SHIELD_SLAM",
+    "WHIRLWIND",
+    "THUNDER_CLAP",
+}
+
 local compareAbilities = {
     BLOODTHIRST = {
+        optionKey = "compareBloodthirst",
         spellID = 23881,
     },
     MORTAL_STRIKE = {
+        optionKey = "compareMortalStrike",
         spellID = 12294,
     },
     SLAM = {
+        optionKey = "compareSlam",
         spellID = 1464,
     },
     SHIELD_SLAM = {
+        optionKey = "compareShieldSlam",
         spellID = 23922,
     },
     WHIRLWIND = {
+        optionKey = "compareWhirlwind",
         spellID = 1680,
     },
     THUNDER_CLAP = {
+        optionKey = "compareThunderClap",
         spellID = 6343,
     },
 }
@@ -105,16 +120,26 @@ function Bar:Initialize(parent)
     self.text = self.frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     self.text:SetPoint("CENTER")
 
-    self.compareIndicator = CreateFrame("Frame", nil, self.frame)
-    self.compareIndicator:SetFrameLevel(self.frame:GetFrameLevel() + 1)
-    self.compareIndicator:SetSize(2, 20)
-    self.compareIndicatorLine = self.compareIndicator:CreateTexture(nil, "OVERLAY")
-    self.compareIndicatorLine:SetAllPoints()
-    self.compareIndicatorLine:SetColorTexture(1, 1, 1, 0.9)
-    self.compareIndicatorIcon = self.compareIndicator:CreateTexture(nil, "OVERLAY")
-    self.compareIndicatorIcon:SetSize(16, 16)
-    self.compareIndicatorIcon:SetPoint("BOTTOM", self.compareIndicator, "TOP", 0, 2)
-    self.compareIndicator:Hide()
+    self.compareIndicators = {}
+    for index, abilityKey in ipairs(compareAbilityOrder) do
+        local indicator = CreateFrame("Frame", nil, self.frame)
+        indicator:SetFrameLevel(self.frame:GetFrameLevel() + index)
+        indicator:SetSize(2, 20)
+
+        local line = indicator:CreateTexture(nil, "OVERLAY")
+        line:SetAllPoints()
+        line:SetColorTexture(1, 1, 1, 0.9)
+
+        local icon = indicator:CreateTexture(nil, "OVERLAY")
+        icon:SetSize(16, 16)
+        icon:SetPoint("BOTTOM", indicator, "TOP", 0, 2)
+
+        indicator:Hide()
+        self.compareIndicators[abilityKey] = {
+            frame = indicator,
+            icon = icon,
+        }
+    end
 end
 
 -- Shows or hides the bar display.
@@ -142,7 +167,9 @@ function Bar:ApplySize()
 
     local hasIcon = self.iconPosition ~= "NONE"
     self.frame:SetSize(self.width, self.height)
-    self.compareIndicator:SetHeight(self.height)
+    for _, indicator in pairs(self.compareIndicators) do
+        indicator.frame:SetHeight(self.height)
+    end
     self.frame:ClearAllPoints()
     if self.iconPosition == "LEFT" then
         self.frame:SetPoint("CENTER", self.parent, "CENTER", self.height / 2, 0)
@@ -215,19 +242,28 @@ function Bar:Update()
     )
     local value = UnitHealthPercent("target", true, curve)
     local text = Addon:AbbreviateDamage(value)
-    local compareTo = self.options:GetOption("compareTo")
-    local comparison = compareAbilities[compareTo]
-    local compareValue
-    if comparison then
-        compareValue = self.abilities:ComputeExpectedAbilityEHPDamagePerRage(
-            compareTo
-        ) * self.abilities:GetAbilityRageCost("SUNDER_ARMOR")
+    local sunderRageCost = self.abilities:GetAbilityRageCost("SUNDER_ARMOR")
+    local comparisons = {}
+    local highestCompareValue = 0
+    for _, abilityKey in ipairs(compareAbilityOrder) do
+        local ability = compareAbilities[abilityKey]
+        if self.options:GetOption(ability.optionKey) then
+            local compareValue =
+                self.abilities:ComputeExpectedAbilityEHPDamagePerRage(abilityKey)
+                * sunderRageCost
+            comparisons[#comparisons + 1] = {
+                key = abilityKey,
+                value = compareValue,
+            }
+            highestCompareValue = math.max(highestCompareValue, compareValue)
+        else
+            self.compareIndicators[abilityKey].frame:Hide()
+        end
     end
-    local compareIcon = comparison and C_Spell.GetSpellTexture(comparison.spellID)
 
-    if self.colorShiftEnabled and comparison then
+    if self.colorShiftEnabled and #comparisons > 0 then
         local colorCurve = createComparisonColorCurve(
-            compareValue,
+            highestCompareValue,
             maxValue,
             self.aboveThresholdColor,
             self.belowThresholdColor
@@ -238,22 +274,24 @@ function Bar:Update()
         self.frame:SetStatusBarColor(self.solidColor:GetRGB())
     end
 
-    local rangeMax = compareValue and math.max(maxValue, compareValue) or maxValue
+    local rangeMax = math.max(maxValue, highestCompareValue)
     self.text:SetText(text)
     self.frame:SetMinMaxValues(0, rangeMax)
     self.frame:SetValue(value)
 
-    if not comparison or not compareValue or not compareIcon or rangeMax <= 0 then
-        self.compareIndicator:Hide()
-        return
+    for _, comparison in ipairs(comparisons) do
+        local indicator = self.compareIndicators[comparison.key]
+        local position = math.max(
+            1,
+            math.min(self.width - 1, comparison.value / rangeMax * self.width)
+        )
+        indicator.frame:ClearAllPoints()
+        indicator.frame:SetPoint("CENTER", self.frame, "LEFT", position, 0)
+        indicator.icon:ClearAllPoints()
+        indicator.icon:SetPoint("BOTTOM", indicator.frame, "TOP", 0, 2)
+        indicator.icon:SetTexture(
+            C_Spell.GetSpellTexture(compareAbilities[comparison.key].spellID)
+        )
+        indicator.frame:Show()
     end
-
-    local position = math.max(
-        1,
-        math.min(self.width - 1, compareValue / rangeMax * self.width)
-    )
-    self.compareIndicator:ClearAllPoints()
-    self.compareIndicator:SetPoint("CENTER", self.frame, "LEFT", position, 0)
-    self.compareIndicatorIcon:SetTexture(compareIcon)
-    self.compareIndicator:Show()
 end

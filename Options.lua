@@ -31,7 +31,12 @@ local defaults = {
         barAboveThresholdColor = { 0, 0.62, 0.45 },
         barBelowThresholdColor = { 0.8, 0.47, 0.65 },
         barSolidColor = { 0.75, 0.25, 0.25 },
-        compareTo = "NONE",
+        compareBloodthirst = false,
+        compareMortalStrike = false,
+        compareSlam = false,
+        compareShieldSlam = false,
+        compareWhirlwind = false,
+        compareThunderClap = false,
         sunderArmorRank = 5,
         improvedSunderArmorRank = 0,
         improvedThunderClapRank = 0,
@@ -76,14 +81,43 @@ local barIconPositions = {
     RIGHT = "Right",
 }
 
-local compareToAbilities = {
-    NONE = "None",
-    BLOODTHIRST = "Bloodthirst",
-    MORTAL_STRIKE = "Mortal Strike",
-    SLAM = "Slam",
-    SHIELD_SLAM = "Shield Slam",
-    WHIRLWIND = "Whirlwind",
-    THUNDER_CLAP = "Thunder Clap",
+local compareAbilities = {
+    {
+        key = "BLOODTHIRST",
+        optionKey = "compareBloodthirst",
+        name = "Bloodthirst",
+        spellID = 23881,
+    },
+    {
+        key = "MORTAL_STRIKE",
+        optionKey = "compareMortalStrike",
+        name = "Mortal Strike",
+        spellID = 12294,
+    },
+    {
+        key = "SLAM",
+        optionKey = "compareSlam",
+        name = "Slam",
+        spellID = 1464,
+    },
+    {
+        key = "SHIELD_SLAM",
+        optionKey = "compareShieldSlam",
+        name = "Shield Slam",
+        spellID = 23922,
+    },
+    {
+        key = "WHIRLWIND",
+        optionKey = "compareWhirlwind",
+        name = "Whirlwind",
+        spellID = 1680,
+    },
+    {
+        key = "THUNDER_CLAP",
+        optionKey = "compareThunderClap",
+        name = "Thunder Clap",
+        spellID = 6343,
+    },
 }
 
 local function getMediaValues(mediaType)
@@ -109,6 +143,24 @@ local function makeBarColorOption(options, name, optionKey, order, colorShifted)
         end,
         set = function(_, red, green, blue)
             options:SetOption(optionKey, { red, green, blue })
+        end,
+    }
+end
+
+local function makeCompareAbilityOption(options, ability, order)
+    return {
+        type = "toggle",
+        name = function()
+            local icon = C_Spell.GetSpellTexture(ability.spellID)
+            return ("|T%s:16|t %s"):format(icon, ability.name)
+        end,
+        desc = "Show a bar marker for " .. ability.name .. ".",
+        order = order,
+        get = function()
+            return options.db.profile[ability.optionKey]
+        end,
+        set = function(_, value)
+            options:SetOption(ability.optionKey, value)
         end,
     }
 end
@@ -154,19 +206,41 @@ function Options:OnInitialize()
                             self:SetOption("displayMode", value)
                         end,
                     },
-                    compareTo = {
-                        type = "select",
+                    compareHeader = {
+                        type = "header",
                         name = "Compare To",
-                        desc = "Choose an ability to compare with the Sunder Armor estimate.",
-                        values = compareToAbilities,
                         order = 3,
-                        get = function()
-                            return self.db.profile.compareTo
-                        end,
-                        set = function(_, value)
-                            self:SetOption("compareTo", value)
-                        end,
                     },
+                    compareBloodthirst = makeCompareAbilityOption(
+                        self,
+                        compareAbilities[1],
+                        4
+                    ),
+                    compareMortalStrike = makeCompareAbilityOption(
+                        self,
+                        compareAbilities[2],
+                        5
+                    ),
+                    compareSlam = makeCompareAbilityOption(
+                        self,
+                        compareAbilities[3],
+                        6
+                    ),
+                    compareShieldSlam = makeCompareAbilityOption(
+                        self,
+                        compareAbilities[4],
+                        7
+                    ),
+                    compareWhirlwind = makeCompareAbilityOption(
+                        self,
+                        compareAbilities[5],
+                        8
+                    ),
+                    compareThunderClap = makeCompareAbilityOption(
+                        self,
+                        compareAbilities[6],
+                        9
+                    ),
                     textSize = {
                         type = "range",
                         name = "Text size",
@@ -174,7 +248,7 @@ function Options:OnInitialize()
                         min = 8,
                         max = 24,
                         step = 1,
-                        order = 4,
+                        order = 10,
                         get = function()
                             return self.db.profile.textSize
                         end,
@@ -189,7 +263,7 @@ function Options:OnInitialize()
                         values = function()
                             return getMediaValues("font")
                         end,
-                        order = 5,
+                        order = 11,
                         get = function()
                             return self.db.profile.font
                         end,
@@ -201,7 +275,7 @@ function Options:OnInitialize()
                         type = "execute",
                         name = "Reset display position",
                         desc = "Move the display back to the center of the screen.",
-                        order = 6,
+                        order = 12,
                         func = function()
                             Addon:ResetDisplayPosition()
                         end,
@@ -209,7 +283,7 @@ function Options:OnInitialize()
                     barHeader = {
                         type = "header",
                         name = "Bar",
-                        order = 7,
+                        order = 13,
                     },
                     barWidth = {
                         type = "range",
@@ -218,7 +292,7 @@ function Options:OnInitialize()
                         min = 80,
                         max = 400,
                         step = 10,
-                        order = 8,
+                        order = 14,
                         disabled = function()
                             return self.db.profile.displayMode ~= "BAR"
                         end,
@@ -236,7 +310,7 @@ function Options:OnInitialize()
                         min = 8,
                         max = 48,
                         step = 2,
-                        order = 9,
+                        order = 15,
                         disabled = function()
                             return self.db.profile.displayMode ~= "BAR"
                         end,
@@ -254,7 +328,7 @@ function Options:OnInitialize()
                         values = function()
                             return getMediaValues("statusbar")
                         end,
-                        order = 10,
+                        order = 16,
                         disabled = function()
                             return self.db.profile.displayMode ~= "BAR"
                         end,
@@ -270,7 +344,7 @@ function Options:OnInitialize()
                         name = "Bar icon",
                         desc = "Optionally attach the Sunder Armor icon to either end of the bar.",
                         values = barIconPositions,
-                        order = 11,
+                        order = 17,
                         disabled = function()
                             return self.db.profile.displayMode ~= "BAR"
                         end,
@@ -285,7 +359,7 @@ function Options:OnInitialize()
                         type = "toggle",
                         name = "Color shift",
                         desc = "Shift the bar color based on its value relative to Compare To.",
-                        order = 12,
+                        order = 18,
                         disabled = function()
                             return self.db.profile.displayMode ~= "BAR"
                         end,
@@ -300,27 +374,27 @@ function Options:OnInitialize()
                         self,
                         "Above-threshold color",
                         "barAboveThresholdColor",
-                        13,
+                        19,
                         true
                     ),
                     barBelowThresholdColor = makeBarColorOption(
                         self,
                         "Below-threshold color",
                         "barBelowThresholdColor",
-                        14,
+                        20,
                         true
                     ),
                     barSolidColor = makeBarColorOption(
                         self,
                         "Solid bar color",
                         "barSolidColor",
-                        15,
+                        21,
                         false
                     ),
                     iconHeader = {
                         type = "header",
                         name = "Icon",
-                        order = 16,
+                        order = 22,
                     },
                     iconSize = {
                         type = "range",
@@ -329,7 +403,7 @@ function Options:OnInitialize()
                         min = 16,
                         max = 64,
                         step = 2,
-                        order = 17,
+                        order = 23,
                         disabled = function()
                             return self.db.profile.displayMode ~= "ICON"
                         end,
@@ -345,7 +419,7 @@ function Options:OnInitialize()
                         name = "Text position",
                         desc = "Choose an attachment point on the icon or center the text below it.",
                         values = textPositions,
-                        order = 18,
+                        order = 24,
                         disabled = function()
                             return self.db.profile.displayMode ~= "ICON"
                         end,
