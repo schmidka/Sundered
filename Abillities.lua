@@ -124,6 +124,11 @@ local rendTicksByRank = {
     3, 4, 5, 5, 5, 5, 5,
 }
 
+-- Damage increase by Improved Rend talent rank.
+local improvedRendDamageByRank = {
+    0, 0.12, 0.23, 0.35,
+}
+
 -- Base damage by rank for Revenge.
 local revengeDamageByRank = {
     22, 34, 48, 82, 121, 153,
@@ -157,9 +162,11 @@ local function clamp(value, min, max)
     return math.max(min, math.min(value, max))
 end
 
--- Assumes a successful hit and averages normal damage with double-damage crits.
+-- Assumes a successful hit and includes expected critical damage and Impale.
 local function applyExpectedCrit(damage)
-    return damage * (1 + AttributeCache:GetCritChance() / 100)
+    local critChance = AttributeCache:GetCritChance() / 100
+    local critDamageBonus = GetOption("impaleRank") * 0.1
+    return damage * (1 + critChance * (1 + critDamageBonus))
 end
 
 -- Returns a level-based armor estimate using the current default mob archetype.
@@ -174,7 +181,7 @@ local function getSunderArmorValue(rank)
     return sunderArmorByRank[rank]
 end
 
-local function computeArmorMitigationMultiplier(armor, attackerLevel)
+local function computeMitigation(armor, attackerLevel)
     return 1 + armor / (85 * attackerLevel + 400)
 end
 
@@ -230,18 +237,23 @@ end
 -- Rend cannot crit; estimate its bleed damage in armor-mitigated EHP terms.
 local function computeRendEHPDamage(rank, attackerLevel, targetLevel)
     rank = clamp(rank, 1, 7)
+    local talentRank = clamp(GetOption("improvedRendRank"), 0, 3)
     local attackPower = AttributeCache:GetAttackPower()
     local ticks = rendTicksByRank[rank]
     local damage = rendDamageByRank[rank] + ticks * attackPower * 0.02
     local armor = getArmor(targetLevel)
-    return damage * computeArmorMitigationMultiplier(armor, attackerLevel)
+    damage = damage * (1 + improvedRendDamageByRank[talentRank + 1])
+    return damage * computeMitigation(armor, attackerLevel)
 end
 
 -- Estimates Revenge assuming its block, dodge, or parry condition was met.
 local function computeRevengeEHPDamage(rank)
     rank = clamp(rank, 1, 6)
     local attackPower = AttributeCache:GetAttackPower()
-    return applyExpectedCrit(revengeDamageByRank[rank] + attackPower * 0.25)
+    local damage = revengeDamageByRank[rank] + attackPower * 0.25
+    local talentRank = clamp(GetOption("improvedRevengeRank"), 0, 3)
+    damage = damage * (1 + talentRank * 0.2)
+    return applyExpectedCrit(damage)
 end
 
 -- Converts health and armor into effective health for a given attacker level.
@@ -322,12 +334,19 @@ function Abilities:GetAbilityRageCost(spellName)
 
     -- Apply general talent reductions, then the ability-specific reduction.
     rageCost = rageCost - GetOption("focusedRageRank")
+
     if spellName == "Sunder Armor" then
         rageCost = rageCost - GetOption("improvedSunderArmorRank")
     elseif spellName == "Thunder Clap" then
         local talentRank = GetOption("improvedThunderClapRank")
         local rageReduction = improvedThunderClapRageReductionByRank[talentRank + 1]
         rageCost = rageCost - rageReduction
+    elseif spellName == "Heroic Strike" then
+        rageCost = rageCost - GetOption("improvedHeroicStrikeRank")
+    end
+
+    if spellName ~= "Rend" and spellName ~= "Sunder Armor" then
+        rageCost = rageCost - GetOption("unbridledWrathRank") * 0.12
     end
 
     return math.max(0, rageCost)

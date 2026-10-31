@@ -43,7 +43,12 @@ local defaults = {
         sunderArmorRank = 5,
         improvedSunderArmorRank = 0,
         improvedThunderClapRank = 0,
+        improvedHeroicStrikeRank = 0,
+        improvedRevengeRank = 0,
+        improvedRendRank = 0,
+        impaleRank = 0,
         focusedRageRank = 0,
+        unbridledWrathRank = 0,
         bloodthirstRank = 4,
         mortalStrikeRank = 4,
         slamRank = 5,
@@ -521,6 +526,21 @@ function Options:OnInitialize()
                             self:SetOption("focusedRageRank", value)
                         end,
                     },
+                    unbridledWrathRank = {
+                        type = "range",
+                        name = "Unbridled Wrath rank",
+                        desc = "Set the rank of the talent that can reduce direct-damage abilities' Rage costs.",
+                        min = 0,
+                        max = 5,
+                        step = 1,
+                        order = 9,
+                        get = function()
+                            return self.db.profile.unbridledWrathRank
+                        end,
+                        set = function(_, value)
+                            self:SetOption("unbridledWrathRank", value)
+                        end,
+                    },
                     improvedThunderClapRank = {
                         type = "range",
                         name = "Improved Thunder Clap rank",
@@ -528,12 +548,72 @@ function Options:OnInitialize()
                         min = 0,
                         max = 3,
                         step = 1,
-                        order = 9,
+                        order = 10,
                         get = function()
                             return self.db.profile.improvedThunderClapRank
                         end,
                         set = function(_, value)
                             self:SetOption("improvedThunderClapRank", value)
+                        end,
+                    },
+                    improvedHeroicStrikeRank = {
+                        type = "range",
+                        name = "Improved Heroic Strike rank",
+                        desc = "Set the talent rank that reduces Heroic Strike's Rage cost.",
+                        min = 0,
+                        max = 3,
+                        step = 1,
+                        order = 11,
+                        get = function()
+                            return self.db.profile.improvedHeroicStrikeRank
+                        end,
+                        set = function(_, value)
+                            self:SetOption("improvedHeroicStrikeRank", value)
+                        end,
+                    },
+                    improvedRendRank = {
+                        type = "range",
+                        name = "Improved Rend rank",
+                        desc = "Set the talent rank that increases Rend damage.",
+                        min = 0,
+                        max = 3,
+                        step = 1,
+                        order = 12,
+                        get = function()
+                            return self.db.profile.improvedRendRank
+                        end,
+                        set = function(_, value)
+                            self:SetOption("improvedRendRank", value)
+                        end,
+                    },
+                    impaleRank = {
+                        type = "range",
+                        name = "Impale rank",
+                        desc = "Set the talent rank that increases critical strike damage.",
+                        min = 0,
+                        max = 2,
+                        step = 1,
+                        order = 13,
+                        get = function()
+                            return self.db.profile.impaleRank
+                        end,
+                        set = function(_, value)
+                            self:SetOption("impaleRank", value)
+                        end,
+                    },
+                    improvedRevengeRank = {
+                        type = "range",
+                        name = "Improved Revenge rank",
+                        desc = "Set the talent rank that increases Revenge damage.",
+                        min = 0,
+                        max = 3,
+                        step = 1,
+                        order = 14,
+                        get = function()
+                            return self.db.profile.improvedRevengeRank
+                        end,
+                        set = function(_, value)
+                            self:SetOption("improvedRevengeRank", value)
                         end,
                     },
                     heroicStrikeRank = {
@@ -543,7 +623,7 @@ function Options:OnInitialize()
                         min = 1,
                         max = 9,
                         step = 1,
-                        order = 10,
+                        order = 15,
                         get = function()
                             return self.db.profile.heroicStrikeRank
                         end,
@@ -558,7 +638,7 @@ function Options:OnInitialize()
                         min = 1,
                         max = 7,
                         step = 1,
-                        order = 11,
+                        order = 16,
                         get = function()
                             return self.db.profile.rendRank
                         end,
@@ -573,7 +653,7 @@ function Options:OnInitialize()
                         min = 1,
                         max = 6,
                         step = 1,
-                        order = 12,
+                        order = 17,
                         get = function()
                             return self.db.profile.revengeRank
                         end,
