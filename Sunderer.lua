@@ -1,11 +1,20 @@
+--[[
+    Sunderer
+
+    This is the entry point and primary event handler for the addon. It owns the main addon frame and acts as to
+    control and coordinate the other aspects.
+
+    Currently it also houses some common uility functions. These may be moved in the future.
+]]
 Sunderer = LibStub("AceAddon-3.0"):NewAddon("Sunderer", "AceEvent-3.0", "AceConsole-3.0")
 Sunderer.callbacks = LibStub("CallbackHandler-1.0"):New(Sunderer)
 
+-- Module references initialized after AceAddon loads the addon.
 local Options   = nil
 local Icon      = nil
 local Bar       = nil
 
--- Configure Blizzard's localized number abbreviations for values up to 100K.
+-- Keep Blizzard's localized abbreviations while tuning the displayed precision below 100K.
 -- The 10K breakpoint keeps about three significant digits; the zero
 -- breakpoint avoids showing fractional values below one.
 local numberAbbreviationOptions = {
@@ -40,6 +49,7 @@ function Sunderer:AbbreviateDamage(value)
     return AbbreviateNumbers(value, numberAbbreviationOptions)
 end
 
+-- Creates the shared display frame and initializes the icon and bar modules.
 function Sunderer:OnInitialize()
     Options = self:GetModule("Options")
     Icon = self:GetModule("Icon")
@@ -57,12 +67,14 @@ function Sunderer:OnInitialize()
     Bar:Initialize(self.displayFrame)
 end
 
+-- Reapplies display options and refreshes the current estimate after a setting changes.
 function Sunderer:UpdateSetting(event, key, value)
     -- Ignore parameters, just apply all the settings
     self:ApplyOptions()
     self:Update()
 end
 
+-- Starts display updates for target, health, world, combat, and profile-setting changes.
 function Sunderer:OnEnable()
     self:RegisterEvent("PLAYER_TARGET_CHANGED", "Update")
     self:RegisterEvent("PLAYER_ENTERING_WORLD", "Update")
@@ -74,6 +86,7 @@ function Sunderer:OnEnable()
     self:Update()
 end
 
+-- Unregisters display events and hides the shared frame.
 function Sunderer:OnDisable()
     self:UnregisterEvent("PLAYER_TARGET_CHANGED")
     self:UnregisterEvent("PLAYER_ENTERING_WORLD")
@@ -83,6 +96,7 @@ function Sunderer:OnDisable()
     self.displayFrame:Hide()
 end
 
+-- Applies the active profile to both display modules and sizes their shared frame.
 function Sunderer:ApplyOptions()
     local profile = Options:GetCurrentProfile()
     if not profile then
@@ -119,6 +133,7 @@ function Sunderer:ApplyOptions()
     end
 end
 
+-- Returns the movable display frame to the center of the screen.
 function Sunderer:ResetDisplayPosition()
     if not self.displayFrame then
         return
@@ -129,6 +144,7 @@ function Sunderer:ResetDisplayPosition()
     self.displayFrame:SetPoint("CENTER")
 end
 
+-- Hides the display without a target or refreshes both views for the current target.
 function Sunderer:Update()
     if not self.displayFrame then
         return

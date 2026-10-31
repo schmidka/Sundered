@@ -1,21 +1,30 @@
--- this addon
+--[[
+    Options
+
+    AceConfig interface. Handles the ace options UI set up through the options table, plus the logic around user 
+    profiles and SavedVariables store/load of the assorted options.
+
+    Much of this project is written with the help of ol' Slopsy, although I like to think my masters in CS and 15
+    years as a software engineer has made me a competent meatspace assistant to my AI overlord. However, this part is
+    especially AI-generated. No one should manually write AceConfig options tables, that's just cruel punishment.
+]]
+
 local Addon = LibStub("AceAddon-3.0"):GetAddon("Sunderer")
 
--- this module
 local Options = Addon:NewModule("Options")
 Options.callbacks = LibStub("CallbackHandler-1.0"):New(Options)
 
--- Ace libraries used by this module
+-- Ace libraries for configuration UI, profile persistence, and shared media.
 local AceConfig         = LibStub("AceConfig-3.0")
 local AceConfigDialog   = LibStub("AceConfigDialog-3.0")
 local AceDB             = LibStub("AceDB-3.0")
 local AceDBOptions      = LibStub("AceDBOptions-3.0")
 local LSM               = LibStub("LibSharedMedia-3.0")
 
--- dummy value
+-- AceConfig color callbacks use an ignored first argument.
 local _
 
--- Default values for our options
+-- Defaults for the display and Classic ability settings in each profile.
 local defaults = {
     profile = {
         displayMode = "BAR",
@@ -31,12 +40,6 @@ local defaults = {
         barAboveThresholdColor = { 0, 0.62, 0.45 },
         barBelowThresholdColor = { 0.8, 0.47, 0.65 },
         barSolidColor = { 0.75, 0.25, 0.25 },
-        compareBloodthirst = false,
-        compareMortalStrike = false,
-        compareSlam = false,
-        compareShieldSlam = false,
-        compareWhirlwind = false,
-        compareThunderClap = false,
         sunderArmorRank = 5,
         improvedSunderArmorRank = 0,
         improvedThunderClapRank = 0,
@@ -57,6 +60,7 @@ function Options:GetCurrentProfile()
     end
 end
 
+-- Text anchors presented by the icon text-position selector.
 local textPositions = {
     TOPLEFT = "Top left",
     TOP = "Top",
@@ -70,57 +74,21 @@ local textPositions = {
     BELOW = "Below",
 }
 
+-- Display modes presented by the display selector.
 local displayModes = {
     ICON = "Icon",
     BAR = "Bar",
 }
 
+-- Optional positions presented by the bar-icon selector.
 local barIconPositions = {
     NONE = "None",
     LEFT = "Left",
     RIGHT = "Right",
 }
 
-local compareAbilities = {
-    {
-        key = "BLOODTHIRST",
-        optionKey = "compareBloodthirst",
-        name = "Bloodthirst",
-        spellID = 23881,
-    },
-    {
-        key = "MORTAL_STRIKE",
-        optionKey = "compareMortalStrike",
-        name = "Mortal Strike",
-        spellID = 12294,
-    },
-    {
-        key = "SLAM",
-        optionKey = "compareSlam",
-        name = "Slam",
-        spellID = 1464,
-    },
-    {
-        key = "SHIELD_SLAM",
-        optionKey = "compareShieldSlam",
-        name = "Shield Slam",
-        spellID = 23922,
-    },
-    {
-        key = "WHIRLWIND",
-        optionKey = "compareWhirlwind",
-        name = "Whirlwind",
-        spellID = 1680,
-    },
-    {
-        key = "THUNDER_CLAP",
-        optionKey = "compareThunderClap",
-        name = "Thunder Clap",
-        spellID = 6343,
-    },
-}
-
 local function getMediaValues(mediaType)
+    -- Convert the media library's list into the key/value map AceConfig expects.
     local values = {}
     for _, name in ipairs(LSM:List(mediaType)) do
         values[name] = name
@@ -129,6 +97,7 @@ local function getMediaValues(mediaType)
 end
 
 local function makeBarColorOption(options, name, optionKey, order, colorShifted)
+    -- Reuse one option definition for the two gradient colors and the solid color.
     return {
         type = "color",
         name = name,
@@ -147,42 +116,62 @@ local function makeBarColorOption(options, name, optionKey, order, colorShifted)
     }
 end
 
-local function makeCompareAbilityOption(options, ability, order)
+local function makeCompareAbilityOption(options, abilities, spellName, optionKey, order)
+    -- Each comparison has its own profile-backed toggle and spell icon label.
     return {
         type = "toggle",
         name = function()
-            local icon = C_Spell.GetSpellTexture(ability.spellID)
-            return ("|T%s:16|t %s"):format(icon, ability.name)
+            local icon = abilities:GetAbilityTexture(spellName)
+            if icon then
+                return ("|T%s:16|t %s"):format(icon, spellName)
+            end
+
+            return spellName
         end,
-        desc = "Show a bar marker for " .. ability.name .. ".",
+        desc = "Show a bar marker for " .. spellName .. ".",
         order = order,
         get = function()
-            return options.db.profile[ability.optionKey]
+            return options.db.profile[optionKey]
         end,
         set = function(_, value)
-            options:SetOption(ability.optionKey, value)
+            options:SetOption(optionKey, value)
         end,
     }
 end
 
+-- Saves a profile setting and notifies the addon so dependent displays can refresh.
 function Options:SetOption(key, value)
     self.db.profile[key] = value
 	self.callbacks:Fire("Sunderer" .. "_SETTING_CHANGED", key, value)
 end
 
+-- Returns a setting from the active profile.
 function Options:GetOption(key)
 	return self.db.profile[key]
 end
 
+-- Initializes the profile database and registers all addon settings with AceConfig.
 function Options:OnInitialize()
-	-- init database
+    local abilities = Addon:GetModule("Abilities")
+    local supportedAbilities = abilities:GetSupportedAbilities()
+    local comparisonCount = 0
+    for _, spellName in ipairs(supportedAbilities) do
+        if spellName ~= "Sunder Armor" then
+            local optionKey = "compare_" .. spellName:lower():gsub("%s+", "_")
+            defaults.profile[optionKey] = false
+            comparisonCount = comparisonCount + 1
+        end
+    end
+
+    -- Open the saved profile database before building controls that read its values.
 	self.db = AceDB:New("SundererDB", defaults, "Default")
 
-    -- init options table
+    -- Options table describing the Options UI layout for AceConfig and AceConfigDialog.
     self.options = {
         type = "group",
         name = "Sunderer",
         args = {
+            -- Display options configure presentation and comparison markers.
             display = {
                 type = "group",
                 name = "Display",
@@ -211,12 +200,6 @@ function Options:OnInitialize()
                         name = "Compare To",
                         order = 3,
                     },
-                    compareBloodthirst = makeCompareAbilityOption(self, compareAbilities[1], 4),
-                    compareMortalStrike = makeCompareAbilityOption(self, compareAbilities[2], 5),
-                    compareSlam = makeCompareAbilityOption(self, compareAbilities[3], 6),
-                    compareShieldSlam = makeCompareAbilityOption(self, compareAbilities[4], 7),
-                    compareWhirlwind = makeCompareAbilityOption(self, compareAbilities[5], 8),
-                    compareThunderClap = makeCompareAbilityOption(self, compareAbilities[6], 9),
                     textSize = {
                         type = "range",
                         name = "Text size",
@@ -224,7 +207,7 @@ function Options:OnInitialize()
                         min = 8,
                         max = 24,
                         step = 1,
-                        order = 10,
+                        order = 4,
                         get = function()
                             return self.db.profile.textSize
                         end,
@@ -239,7 +222,7 @@ function Options:OnInitialize()
                         values = function()
                             return getMediaValues("font")
                         end,
-                        order = 11,
+                        order = 5,
                         get = function()
                             return self.db.profile.font
                         end,
@@ -251,7 +234,7 @@ function Options:OnInitialize()
                         type = "execute",
                         name = "Reset display position",
                         desc = "Move the display back to the center of the screen.",
-                        order = 12,
+                        order = 6,
                         func = function()
                             Addon:ResetDisplayPosition()
                         end,
@@ -259,7 +242,7 @@ function Options:OnInitialize()
                     barHeader = {
                         type = "header",
                         name = "Bar",
-                        order = 13,
+                        order = 7,
                     },
                     barWidth = {
                         type = "range",
@@ -268,7 +251,7 @@ function Options:OnInitialize()
                         min = 80,
                         max = 400,
                         step = 10,
-                        order = 14,
+                        order = 8,
                         disabled = function()
                             return self.db.profile.displayMode ~= "BAR"
                         end,
@@ -286,7 +269,7 @@ function Options:OnInitialize()
                         min = 8,
                         max = 48,
                         step = 2,
-                        order = 15,
+                        order = 9,
                         disabled = function()
                             return self.db.profile.displayMode ~= "BAR"
                         end,
@@ -304,7 +287,7 @@ function Options:OnInitialize()
                         values = function()
                             return getMediaValues("statusbar")
                         end,
-                        order = 16,
+                        order = 10,
                         disabled = function()
                             return self.db.profile.displayMode ~= "BAR"
                         end,
@@ -320,7 +303,7 @@ function Options:OnInitialize()
                         name = "Bar icon",
                         desc = "Optionally attach the Sunder Armor icon to either end of the bar.",
                         values = barIconPositions,
-                        order = 17,
+                        order = 11,
                         disabled = function()
                             return self.db.profile.displayMode ~= "BAR"
                         end,
@@ -335,7 +318,7 @@ function Options:OnInitialize()
                         type = "toggle",
                         name = "Color shift",
                         desc = "Shift the bar color based on its value relative to Compare To.",
-                        order = 18,
+                        order = 12,
                         disabled = function()
                             return self.db.profile.displayMode ~= "BAR"
                         end,
@@ -350,27 +333,27 @@ function Options:OnInitialize()
                         self,
                         "Above-threshold color",
                         "barAboveThresholdColor",
-                        19,
+                        13,
                         true
                     ),
                     barBelowThresholdColor = makeBarColorOption(
                         self,
                         "Below-threshold color",
                         "barBelowThresholdColor",
-                        20,
+                        14,
                         true
                     ),
                     barSolidColor = makeBarColorOption(
                         self,
                         "Solid bar color",
                         "barSolidColor",
-                        21,
+                        15,
                         false
                     ),
                     iconHeader = {
                         type = "header",
                         name = "Icon",
-                        order = 22,
+                        order = 16,
                     },
                     iconSize = {
                         type = "range",
@@ -379,7 +362,7 @@ function Options:OnInitialize()
                         min = 16,
                         max = 64,
                         step = 2,
-                        order = 23,
+                        order = 17,
                         disabled = function()
                             return self.db.profile.displayMode ~= "ICON"
                         end,
@@ -395,7 +378,7 @@ function Options:OnInitialize()
                         name = "Text position",
                         desc = "Choose an attachment point on the icon or center the text below it.",
                         values = textPositions,
-                        order = 24,
+                        order = 18,
                         disabled = function()
                             return self.db.profile.displayMode ~= "ICON"
                         end,
@@ -408,6 +391,7 @@ function Options:OnInitialize()
                     },
                 },
             },
+            -- Ability ranks and talent ranks feed the Classic damage and Rage estimates.
             abilities = {
                 type = "group",
                 name = "Abilities",
@@ -538,7 +522,25 @@ function Options:OnInitialize()
         },
     }
 
-	-- profile support
+    local displayArgs = self.options.args.display.args
+    for _, option in pairs(displayArgs) do
+        if option.order and option.order >= 4 then
+            option.order = option.order + comparisonCount
+        end
+    end
+
+    local comparisonOrder = 4
+    for _, spellName in ipairs(supportedAbilities) do
+        if spellName ~= "Sunder Armor" then
+            local optionKey = "compare_" .. spellName:lower():gsub("%s+", "_")
+            displayArgs[optionKey] = makeCompareAbilityOption(
+                self, abilities, spellName, optionKey, comparisonOrder
+            )
+            comparisonOrder = comparisonOrder + 1
+        end
+    end
+
+    -- Add AceDB's profile controls and refresh the addon when the active profile changes.
 	self.options.args.profile = LibStub:GetLibrary("AceDBOptions-3.0"):GetOptionsTable(self.db)
     self.options.args.profile.order = 3
     self.db.RegisterCallback(self, "OnProfileChanged", "OnProfileChanged")
@@ -556,6 +558,7 @@ end
 function Options:OnDisable()
 end
 
+-- Applies the profile selected or restored by AceDB.
 function Options:OnProfileChanged(event, database, newProfileKey)
 	self.db.profile = database.profile
 	Addon:ApplyOptions()

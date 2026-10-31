@@ -1,12 +1,23 @@
--- Module to display estimated Sunder Armor damage as an icon
+--[[
+    Icon
+
+    Displays estimated Sunder Armor effective-health damage as text over a draggable Sunder Armor icon.
+    
+    This is currently not a very useful display mode. The longer term intent is to add more text-based indicators to the icon to
+    make it a denser alternative to the bar mode, but for now it's a secondary concern.
+]]
 
 local Addon = LibStub("AceAddon-3.0"):GetAddon("Sunderer")
 local Icon = Addon:NewModule("Icon")
 local LSM = LibStub("LibSharedMedia-3.0")
+local sunderArmorSpellName = "Sunder Armor"
 
-local function createSunderDamageCurve(abilities, mobHealthCache, rank, targetLevel, attackerLevel)
+-- Curvie mapping target health percentage to the estimated Sunder EHP damage at that health.
+local function createSunderDamageCurve(abilities, mobHealthCache, targetLevel, attackerLevel)
     local maxHealth = mobHealthCache:EstimateTargetMaxHealth()
-    local scale = abilities:ComputeSunderArmorEHPDamageScaling(rank, attackerLevel, targetLevel)
+    local scale = abilities:ComputeExpectedAbilityEHPDamageScaling(
+        sunderArmorSpellName, attackerLevel, targetLevel
+    )
     local curve = C_CurveUtil.CreateCurve()
     curve:SetType(Enum.LuaCurveType.Linear)
     curve:AddPoint(0, 0)
@@ -17,7 +28,6 @@ end
 -- Creates the draggable icon and its text.
 function Icon:Initialize(parent)
     self.parent = parent
-    self.options = Addon:GetModule("Options")
     self.abilities = Addon:GetModule("Abilities")
     self.mobHealthCache = Addon:GetModule("MobHealthCache")
     self.frame = CreateFrame("Button", "SundererIcon", parent)
@@ -65,6 +75,7 @@ end
 function Icon:SetTextPosition(position)
     self.text:ClearAllPoints()
 
+    -- "Below" is outside the icon; all other choices use matching frame anchors.
     if position == "BELOW" then
         self.text:SetPoint("TOP", self.frame, "BOTTOM", 0, -2)
         self.text:SetJustifyH("CENTER")
@@ -86,10 +97,12 @@ end
 
 -- Updates the displayed text.
 function Icon:Update()
-    local rank = self.options:GetOption("sunderArmorRank")
+    -- Rebuild the target-specific curve whenever target stats or settings change.
     local targetLevel = UnitLevel("target")
     local attackerLevel = UnitLevel("player")
-    local curve = createSunderDamageCurve(self.abilities, self.mobHealthCache, rank, targetLevel, attackerLevel)
+    local curve = createSunderDamageCurve(
+        self.abilities, self.mobHealthCache, targetLevel, attackerLevel
+    )
     local value = UnitHealthPercent("target", true, curve)
     self.text:SetText(Addon:AbbreviateDamage(value))
 end
