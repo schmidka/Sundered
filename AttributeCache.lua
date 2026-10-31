@@ -10,7 +10,7 @@ local AttributeCache = Addon:NewModule("AttributeCache", "AceEvent-3.0")
 local smoothing = 0.2
 local outlierThreshold = 0.5
 
-local function NormalizeSavedAverage(value)
+local function normalizeSavedAverage(value)
     if type(value) == "table" then
         return value.average
     end
@@ -19,7 +19,7 @@ local function NormalizeSavedAverage(value)
 end
 
 -- Update a cached value with a new sample
-local function UpdateAverage(stats, key, sample)
+local function updateAverage(stats, key, sample)
     if sample == nil then
         return
     end
@@ -42,20 +42,17 @@ local function UpdateAverage(stats, key, sample)
 end
 
 -- secret-safe attribute compute helpers
-local function CurrentAttackPower()
+local function currentAttackPower()
     local base, positiveBuffs, negativeBuffs = UnitAttackPower("player")
-    if issecretvalue(base) or issecretvalue(positiveBuffs)
-        or issecretvalue(negativeBuffs)
-    then
+    if issecretvalue(base) or issecretvalue(positiveBuffs) or issecretvalue(negativeBuffs) then
         return nil
     end
 
     return base + positiveBuffs + negativeBuffs
 end
 
-local function CurrentWeaponDamage()
-    local minimumDamage, maximumDamage, minimumOffHandDamage, maximumOffHandDamage =
-        UnitDamage("player")
+local function currentWeaponDamage()
+    local minimumDamage, maximumDamage, minimumOffHandDamage, maximumOffHandDamage = UnitDamage("player")
     if issecretvalue(minimumDamage) or issecretvalue(maximumDamage)
         or issecretvalue(minimumOffHandDamage)
         or issecretvalue(maximumOffHandDamage)
@@ -63,11 +60,10 @@ local function CurrentWeaponDamage()
         return nil, nil
     end
 
-    return (minimumDamage + maximumDamage) / 2,
-        (minimumOffHandDamage + maximumOffHandDamage) / 2
+    return (minimumDamage + maximumDamage) / 2, (minimumOffHandDamage + maximumOffHandDamage) / 2
 end
 
-local function CurrentCritChance()
+local function currentCritChance()
     local critChance = GetCritChance()
     if issecretvalue(critChance) then
         return nil
@@ -76,7 +72,7 @@ local function CurrentCritChance()
     return critChance
 end
 
-local function CurrentShieldBlock()
+local function currentShieldBlock()
     local shieldBlock = GetShieldBlock()
     if issecretvalue(shieldBlock) then
         return nil
@@ -114,15 +110,11 @@ function AttributeCache:GetCharacterStats()
     self.database[characterKey] = characterStats
 
     if not self.loadedCharacters[characterKey] then
-        characterStats.attackPower = NormalizeSavedAverage(characterStats.attackPower)
-        characterStats.averageMainHandDamage = NormalizeSavedAverage(
-            characterStats.averageMainHandDamage
-        )
-        characterStats.averageOffHandDamage = NormalizeSavedAverage(
-            characterStats.averageOffHandDamage
-        )
-        characterStats.critChance = NormalizeSavedAverage(characterStats.critChance)
-        characterStats.shieldBlock = NormalizeSavedAverage(characterStats.shieldBlock)
+        characterStats.attackPower = normalizeSavedAverage(characterStats.attackPower)
+        characterStats.averageMainHandDamage = normalizeSavedAverage(characterStats.averageMainHandDamage)
+        characterStats.averageOffHandDamage = normalizeSavedAverage(characterStats.averageOffHandDamage)
+        characterStats.critChance = normalizeSavedAverage(characterStats.critChance)
+        characterStats.shieldBlock = normalizeSavedAverage(characterStats.shieldBlock)
         self.loadedCharacters[characterKey] = true
     end
 
@@ -136,12 +128,12 @@ function AttributeCache:Capture()
         return
     end
 
-    UpdateAverage(stats, "attackPower", CurrentAttackPower())
-    local mainHandDamage, offHandDamage = CurrentWeaponDamage()
-    UpdateAverage(stats, "averageMainHandDamage", mainHandDamage)
-    UpdateAverage(stats, "averageOffHandDamage", offHandDamage)
-    UpdateAverage(stats, "critChance", CurrentCritChance())
-    UpdateAverage(stats, "shieldBlock", CurrentShieldBlock())
+    updateAverage(stats, "attackPower", currentAttackPower())
+    local mainHandDamage, offHandDamage = currentWeaponDamage()
+    updateAverage(stats, "averageMainHandDamage", mainHandDamage)
+    updateAverage(stats, "averageOffHandDamage", offHandDamage)
+    updateAverage(stats, "critChance", currentCritChance())
+    updateAverage(stats, "shieldBlock", currentShieldBlock())
 end
 
 -- Returns the cached average Attack Power, or zero when it is unavailable.

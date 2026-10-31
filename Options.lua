@@ -211,36 +211,12 @@ function Options:OnInitialize()
                         name = "Compare To",
                         order = 3,
                     },
-                    compareBloodthirst = makeCompareAbilityOption(
-                        self,
-                        compareAbilities[1],
-                        4
-                    ),
-                    compareMortalStrike = makeCompareAbilityOption(
-                        self,
-                        compareAbilities[2],
-                        5
-                    ),
-                    compareSlam = makeCompareAbilityOption(
-                        self,
-                        compareAbilities[3],
-                        6
-                    ),
-                    compareShieldSlam = makeCompareAbilityOption(
-                        self,
-                        compareAbilities[4],
-                        7
-                    ),
-                    compareWhirlwind = makeCompareAbilityOption(
-                        self,
-                        compareAbilities[5],
-                        8
-                    ),
-                    compareThunderClap = makeCompareAbilityOption(
-                        self,
-                        compareAbilities[6],
-                        9
-                    ),
+                    compareBloodthirst = makeCompareAbilityOption(self, compareAbilities[1], 4),
+                    compareMortalStrike = makeCompareAbilityOption(self, compareAbilities[2], 5),
+                    compareSlam = makeCompareAbilityOption(self, compareAbilities[3], 6),
+                    compareShieldSlam = makeCompareAbilityOption(self, compareAbilities[4], 7),
+                    compareWhirlwind = makeCompareAbilityOption(self, compareAbilities[5], 8),
+                    compareThunderClap = makeCompareAbilityOption(self, compareAbilities[6], 9),
                     textSize = {
                         type = "range",
                         name = "Text size",

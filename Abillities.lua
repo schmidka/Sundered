@@ -26,16 +26,8 @@ end
     cares about leveling and normal mobs, not instanced content. The Sunder
     yes/no decision is always going to be yes against Sulfuron, so I am not
     worried about handling them.
-    
-    Health is definitely not exact. Secrecy prevents us from using
-    UnitHealthMax. We have to hardcode some guesses. This is a sloppily
-    generated table of approximate base health for a typical mob at each
-    level. I have done some manual verification and the AI seems to have done
-    a reasonable job, but by its nature these are rough numbers. Mage mobs
-    will have 30% less, high HP mobs like bears will have 20% more, give or
-    take.
 
-    Finally, I believe Forever increases these values much like SoD did, since damage is higher.
+    Finally, I believe Forever increases these values much like SoD did, since player damage is higher.
 
     In conclusion:
     - All these tables are wrong.
@@ -72,17 +64,6 @@ local warriorArmorByLevel = {
     2117, 2262, 2414, 2574, 2742, 2798, 2853, 2907, 2963, 3018,
     3072, 3128, 3183, 3237, 3292, 3348, 3402, 3457, 3512, 3566,
     3622, 3677, 3731,
-}
-
--- As mentioned, these values are definitely not great but they're probably better than nothing.
-local baseHealthByLevel = {
-      44,   53,   64,   76,   89,  103,  119,  137,  156,  176,
-     197,  219,  241,  264,  288,  290,  312,  338,  366,  397,
-     430,  464,  501,  540,  581,  624,  669,  716,  765,  815,
-     827,  830,  868,  915,  968, 1025, 1085, 1148, 1216, 1288,
-    1363, 1444, 1529, 1619, 1714, 1835, 1962, 2095, 2234, 2367,
-    2507, 2654, 2808, 2971, 3141, 3321, 3510, 3709, 3918, 4137,
-    4367, 4609, 4863,
 }
 
 local sunderArmorByRank = {
@@ -124,11 +105,11 @@ local rageCosts = {
     THUNDER_CLAP = 20,
 }
 
-function round(value) 
+local function round(value)
     return math.floor(value + 0.5)
 end
 
-function clamp(value, min, max)
+local function clamp(value, min, max)
     return math.max(min, math.min(value, max))
 end
 
@@ -141,12 +122,6 @@ end
 function Abilities:GetArmor(mobName, level)
     level = clamp(level, 1, 63)
     return paladinArmorByLevel[level]
-end
-
--- Returns the estimated maximum health for a mob at the given level.
-function Abilities:GetApproximateMaxHealth(mobName, level)
-    level = clamp(level, 1, 63)
-    return baseHealthByLevel[level]
 end
 
 -- Returns the armor reduction for a Sunder Armor rank.
@@ -165,9 +140,7 @@ end
 function Abilities:ComputeExpectedMortalStrikeEHPDamage(rank)
     rank = clamp(rank, 1, 4)
     local weaponDamage = AttributeCache:GetAverageMainHandDamage()
-    return applyExpectedCrit(
-        weaponDamage + mortalStrikeBonusByRank[rank]
-    )
+    return applyExpectedCrit(weaponDamage + mortalStrikeBonusByRank[rank])
 end
 
 -- Estimates Slam damage using the selected rank and current main-hand damage.
@@ -180,9 +153,9 @@ end
 -- Estimates Shield Slam damage using the selected rank and current shield block value.
 function Abilities:ComputeExpectedShieldSlamEHPDamage(rank)
     rank = clamp(rank, 1, 4)
-    return applyExpectedCrit(
-        AttributeCache:GetShieldBlock() + shieldSlamBonusByRank[rank]
-    )
+    local shieldBlock = AttributeCache:GetShieldBlock()
+    local damage = shieldBlock + shieldSlamBonusByRank[rank]
+    return applyExpectedCrit(damage)
 end
 
 -- Estimates Whirlwind damage using cached main- and off-hand damage.
@@ -196,8 +169,8 @@ end
 function Abilities:ComputeExpectedThunderClapEHPDamage(rank, talentRank)
     rank = clamp(rank, 1, 6)
     talentRank = clamp(talentRank, 0, 3)
-    local damage = thunderClapDamageByRank[rank]
-        * (1 + improvedThunderClapDamageByRank[talentRank])
+    local improvedDamage = improvedThunderClapDamageByRank[talentRank]
+    local damage = thunderClapDamageByRank[rank] * (1 + improvedDamage)
     return applyExpectedCrit(damage)
 end
 
@@ -206,21 +179,16 @@ function Abilities:ComputeExpectedAbilityEHPDamage(ability)
     if ability == "BLOODTHIRST" then
         return self:ComputeExpectedBloodthirstEHPDamage()
     elseif ability == "MORTAL_STRIKE" then
-        return self:ComputeExpectedMortalStrikeEHPDamage(
-            GetOption("mortalStrikeRank")
-        )
+        return self:ComputeExpectedMortalStrikeEHPDamage(GetOption("mortalStrikeRank"))
     elseif ability == "SLAM" then
         return self:ComputeExpectedSlamEHPDamage(GetOption("slamRank"))
     elseif ability == "SHIELD_SLAM" then
-        return self:ComputeExpectedShieldSlamEHPDamage(
-            GetOption("shieldSlamRank")
-        )
+        return self:ComputeExpectedShieldSlamEHPDamage(GetOption("shieldSlamRank"))
     elseif ability == "WHIRLWIND" then
         return self:ComputeExpectedWhirlwindEHPDamage()
     elseif ability == "THUNDER_CLAP" then
         return self:ComputeExpectedThunderClapEHPDamage(
-            GetOption("thunderClapRank"),
-            GetOption("improvedThunderClapRank")
+            GetOption("thunderClapRank"), GetOption("improvedThunderClapRank")
         )
     end
 end
@@ -236,29 +204,20 @@ function Abilities:GetAbilityRageCost(ability)
     if ability == "SUNDER_ARMOR" then
         rageCost = rageCost - GetOption("improvedSunderArmorRank")
     elseif ability == "THUNDER_CLAP" then
-        rageCost = rageCost
-            - improvedThunderClapRageReductionByRank[
-                GetOption("improvedThunderClapRank") + 1
-            ]
+        local talentRank = GetOption("improvedThunderClapRank")
+        local rageReduction = improvedThunderClapRageReductionByRank[talentRank + 1]
+        rageCost = rageCost - rageReduction
     end
 
     return math.max(0, rageCost)
 end
 
 -- Returns estimated EHP damage per rage for Sunder Armor or a direct ability.
-function Abilities:ComputeExpectedAbilityEHPDamagePerRage(
-    ability,
-    attackerLevel,
-    targetHitPoints,
-    targetLevel
-)
+function Abilities:ComputeExpectedAbilityEHPDamagePerRage(ability, attackerLevel, targetHitPoints, targetLevel)
     local damage
     if ability == "SUNDER_ARMOR" then
         damage = self:ComputeSunderArmorEHPDamage(
-            GetOption("sunderArmorRank"),
-            attackerLevel,
-            targetHitPoints,
-            targetLevel
+            GetOption("sunderArmorRank"), attackerLevel, targetHitPoints, targetLevel
         )
     else
         damage = self:ComputeExpectedAbilityEHPDamage(ability)

@@ -66,6 +66,7 @@ end
 function Sunderer:OnEnable()
     self:RegisterEvent("PLAYER_TARGET_CHANGED", "Update")
     self:RegisterEvent("PLAYER_ENTERING_WORLD", "Update")
+    self:RegisterEvent("PLAYER_REGEN_ENABLED", "Update")
     self:RegisterEvent("UNIT_HEALTH", "Update")
     Options.RegisterCallback(self, "Sunderer_SETTING_CHANGED", "UpdateSetting")
 
@@ -76,6 +77,7 @@ end
 function Sunderer:OnDisable()
     self:UnregisterEvent("PLAYER_TARGET_CHANGED")
     self:UnregisterEvent("PLAYER_ENTERING_WORLD")
+    self:UnregisterEvent("PLAYER_REGEN_ENABLED")
     self:UnregisterEvent("UNIT_HEALTH")
     Options.UnregisterCallback(self, "Sunderer_SETTING_CHANGED")
     self.displayFrame:Hide()

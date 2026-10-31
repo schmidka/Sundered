@@ -4,12 +4,13 @@
 ## Version: 0.1.0
 ## OptionalDeps: Ace3, LibSharedMedia-3.0
 ## X-Embeds: Ace3, LibSharedMedia-3.0
-## SavedVariables: SundererDB, SundererAbilityCache
+## SavedVariables: SundererDB, SundererAbilityCache, SundererMobHealthCache
 #@no-lib-strip@
 embeds.xml
 #@end-no-lib-strip@
 Sunderer.lua
 AttributeCache.lua
+MobHealthCache.lua
 Abillities.lua
 Icon.lua
 Bar.lua

@@ -40,13 +40,9 @@ local compareAbilities = {
     },
 }
 
-local function createSunderDamageCurve(abilities, rank, targetLevel, attackerLevel)
-    local maxHealth = abilities:GetApproximateMaxHealth("", targetLevel)
-    local scale = abilities:ComputeSunderArmorEHPDamageScaling(
-        rank,
-        attackerLevel,
-        targetLevel
-    )
+local function createSunderDamageCurve(abilities, mobHealthCache, rank, targetLevel, attackerLevel)
+    local maxHealth = mobHealthCache:EstimateTargetMaxHealth()
+    local scale = abilities:ComputeSunderArmorEHPDamageScaling(rank, attackerLevel, targetLevel)
     local maxValue = scale * maxHealth
     local curve = C_CurveUtil.CreateCurve()
     curve:SetType(Enum.LuaCurveType.Linear)
@@ -97,6 +93,7 @@ function Bar:Initialize(parent)
     self.parent = parent
     self.options = Addon:GetModule("Options")
     self.abilities = Addon:GetModule("Abilities")
+    self.mobHealthCache = Addon:GetModule("MobHealthCache")
     self.frame = CreateFrame("StatusBar", nil, parent)
     self.frame:SetStatusBarColor(0.75, 0.25, 0.25)
     self.frame:SetMinMaxValues(0, 1)
@@ -235,10 +232,7 @@ function Bar:Update()
     local targetLevel = UnitLevel("target")
     local attackerLevel = UnitLevel("player")
     local curve, maxValue = createSunderDamageCurve(
-        self.abilities,
-        rank,
-        targetLevel,
-        attackerLevel
+        self.abilities, self.mobHealthCache, rank, targetLevel, attackerLevel
     )
     local value = UnitHealthPercent("target", true, curve)
     local text = Addon:AbbreviateDamage(value)
@@ -248,13 +242,9 @@ function Bar:Update()
     for _, abilityKey in ipairs(compareAbilityOrder) do
         local ability = compareAbilities[abilityKey]
         if self.options:GetOption(ability.optionKey) then
-            local compareValue =
-                self.abilities:ComputeExpectedAbilityEHPDamagePerRage(abilityKey)
-                * sunderRageCost
-            comparisons[#comparisons + 1] = {
-                key = abilityKey,
-                value = compareValue,
-            }
+            local damagePerRage = self.abilities:ComputeExpectedAbilityEHPDamagePerRage(abilityKey)
+            local compareValue = damagePerRage * sunderRageCost
+            comparisons[#comparisons + 1] = { key = abilityKey, value = compareValue }
             highestCompareValue = math.max(highestCompareValue, compareValue)
         else
             self.compareIndicators[abilityKey].frame:Hide()
@@ -274,7 +264,11 @@ function Bar:Update()
         self.frame:SetStatusBarColor(self.solidColor:GetRGB())
     end
 
-    local rangeMax = math.max(maxValue, highestCompareValue)
+    local rangeMax = maxValue
+    if #comparisons > 0 then
+        local comparisonRangeMax = math.min(maxValue, highestCompareValue * 1.66)
+        rangeMax = math.max(highestCompareValue, comparisonRangeMax)
+    end
     self.text:SetText(text)
     self.frame:SetMinMaxValues(0, rangeMax)
     self.frame:SetValue(value)
@@ -289,9 +283,8 @@ function Bar:Update()
         indicator.frame:SetPoint("CENTER", self.frame, "LEFT", position, 0)
         indicator.icon:ClearAllPoints()
         indicator.icon:SetPoint("BOTTOM", indicator.frame, "TOP", 0, 2)
-        indicator.icon:SetTexture(
-            C_Spell.GetSpellTexture(compareAbilities[comparison.key].spellID)
-        )
+        local spellID = compareAbilities[comparison.key].spellID
+        indicator.icon:SetTexture(C_Spell.GetSpellTexture(spellID))
         indicator.frame:Show()
     end
 end
