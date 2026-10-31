@@ -12,8 +12,8 @@
 
     The armor tables distinguish rough mob archetypes, but GetArmor currently uses the paladin table as a general
     guess. We could try to use UnitPowerType to differentiate these better but it's hard to be exact about this thing
-    in anyhting vanilla-ish. Target health is handled separately by MobHealthCache. Values here are Classic estimates
-    and will need revision for Forever.
+    in anyhting vanilla-ish. Target health is handled separately by MobHealthCache. Armor estimates remain
+    Classic-based; ability ranks and damage values are updated for Forever where known.
 ]]
 
 local Addon = LibStub("AceAddon-3.0"):GetAddon("Sunderer")
@@ -28,9 +28,12 @@ local supportedAbilities = {
     "Shield Slam",
     "Whirlwind",
     "Thunder Clap",
+    "Heroic Strike",
+    "Rend",
+    "Revenge",
 }
 
--- This would be better accessed through the API but since I'm testing in Midnight it's easier to hardcore.
+-- Static assets keep the icons available while testing in Midnight.
 local abilityTextures = {
     ["Sunder Armor"] = "Interface\\Icons\\Ability_Warrior_Sunder",
     ["Bloodthirst"] = "Interface\\Icons\\Spell_Nature_BloodLust",
@@ -39,13 +42,16 @@ local abilityTextures = {
     ["Shield Slam"] = "Interface\\Icons\\INV_Shield_05",
     ["Whirlwind"] = "Interface\\Icons\\Ability_Whirlwind",
     ["Thunder Clap"] = "Interface\\Icons\\Spell_Nature_ThunderClap",
+    ["Heroic Strike"] = "Interface\\Icons\\Ability_Rogue_Ambush",
+    ["Rend"] = "Interface\\Icons\\Ability_Gouge",
+    ["Revenge"] = "Interface\\Icons\\Ability_Warrior_Revenge",
 }
 
 local function GetOption(key)
     return Addon:GetModule("Options"):GetOption(key)
 end
 
--- Approximate armor values indexed by mob level for the three Classic archetypes.
+-- Approximate armor values indexed by mob level for the mage archetype.
 local mageArmorByLevel = {
       10,   11,   24,   42,   65,   93,  126,  166,  212,  267,
      286,  305,  325,  344,  363,  385,  404,  423,  442,  461,
@@ -67,7 +73,7 @@ local paladinArmorByLevel = {
     2921, 2965, 3009,
 }
 
--- Warrior and rogue armor values, included for future archetype-specific estimates.
+-- Approximate armor values indexed by mob level for the warrior archetype.
 local warriorArmorByLevel = {
       20,   21,   46,   82,  126,  180,  245,  322,  412,  518,
      545,  580,  615,  650,  685,  721,  756,  791,  826,  861,
@@ -83,19 +89,44 @@ local sunderArmorByRank = {
     90, 180, 270, 360, 450,
 }
 
--- Bonus damage by rank for Mortal Strike.
+-- Base damage by rank for Mortal Strike.
 local mortalStrikeBonusByRank = {
     85, 110, 135, 160,
 }
 
--- Bonus damage by rank for Slam.
+-- Base damage by rank for Slam.
 local slamBonusByRank = {
-    32, 43, 68, 87,
+    16, 32, 43, 68, 87,
 }
 
--- Bonus damage by rank for Shield Slam.
+-- Base damage by rank for Shield Slam.
 local shieldSlamBonusByRank = {
-    225, 264, 303, 342,
+    430, 505, 580, 655,
+}
+
+-- Base damage by rank for Bloodthirst.
+local bloodthirstBonusByRank = {
+    30, 37, 43, 48,
+}
+
+-- Base damage by rank for Heroic Strike.
+local heroicStrikeBonusByRank = {
+    11, 21, 32, 54, 78, 100, 128, 157, 196,
+}
+
+-- Base damage by rank for Rend.
+local rendDamageByRank = {
+    15, 30, 45, 75, 105, 150, 210,
+}
+
+-- Damage ticks by rank for Rend.
+local rendTicksByRank = {
+    3, 4, 5, 5, 5, 5, 5,
+}
+
+-- Base damage by rank for Revenge.
+local revengeDamageByRank = {
+    22, 34, 48, 82, 121, 153,
 }
 
 -- Base damage by rank for Thunder Clap.
@@ -103,15 +134,9 @@ local thunderClapDamageByRank = {
     10, 23, 37, 55, 82, 103,
 }
 
--- Improved Thunder Clap's damage bonus by talent rank.
-local improvedThunderClapDamageByRank = {
-    [0] = 0,
-    0.4, 0.7, 1,
-}
-
--- Rage reduction for the same talent ranks.
+-- Rage reduction by Improved Thunder Clap talent rank.
 local improvedThunderClapRageReductionByRank = {
-    0, 1, 2, 4,
+    0, 2, 4, 6,
 }
 
 -- Base Rage costs before the configured talent reductions are applied.
@@ -123,6 +148,9 @@ local rageCosts = {
     ["Shield Slam"] = 20,
     ["Whirlwind"] = 25,
     ["Thunder Clap"] = 20,
+    ["Heroic Strike"] = 15,
+    ["Rend"] = 10,
+    ["Revenge"] = 5,
 }
 
 local function clamp(value, min, max)
@@ -146,27 +174,32 @@ local function getSunderArmorValue(rank)
     return sunderArmorByRank[rank]
 end
 
--- Estimates Bloodthirst EHP damage.
-local function computeBloodthirstEHPDamage()
-    local attackPower = AttributeCache:GetAttackPower()
-    return applyExpectedCrit(attackPower * 0.45)
+local function computeArmorMitigationMultiplier(armor, attackerLevel)
+    return 1 + armor / (85 * attackerLevel + 400)
 end
 
--- Estimates Mortal Strike EHP damage.
+-- Estimates Bloodthirst damage from attack power and its selected rank.
+local function computeBloodthirstEHPDamage(rank)
+    rank = clamp(rank, 1, 4)
+    local attackPower = AttributeCache:GetAttackPower()
+    return applyExpectedCrit(attackPower * 0.45 + bloodthirstBonusByRank[rank])
+end
+
+-- Estimates Mortal Strike damage from main-hand weapon damage and its selected rank.
 local function computeMortalStrikeEHPDamage(rank)
     rank = clamp(rank, 1, 4)
     local weaponDamage = AttributeCache:GetAverageMainHandDamage()
     return applyExpectedCrit(weaponDamage + mortalStrikeBonusByRank[rank])
 end
 
--- Estimates Slam EHP damage.
+-- Estimates Slam damage from main-hand weapon damage and its selected rank.
 local function computeSlamEHPDamage(rank)
-    rank = clamp(rank, 1, 4)
+    rank = clamp(rank, 1, 5)
     local weaponDamage = AttributeCache:GetAverageMainHandDamage()
     return applyExpectedCrit(weaponDamage + slamBonusByRank[rank])
 end
 
--- Estimates Shield Slam EHP damage.
+-- Estimates Shield Slam damage from shield block value and its selected rank.
 local function computeShieldSlamEHPDamage(rank)
     rank = clamp(rank, 1, 4)
     local shieldBlock = AttributeCache:GetShieldBlock()
@@ -174,22 +207,44 @@ local function computeShieldSlamEHPDamage(rank)
     return applyExpectedCrit(damage)
 end
 
--- Estimates Whirlwind EHP damage.
+-- Estimates Whirlwind damage from both weapon hands.
 local function computeWhirlwindEHPDamage()
     local mainHandDamage = AttributeCache:GetAverageMainHandDamage()
     local offHandDamage = AttributeCache:GetAverageOffHandDamage()
     return applyExpectedCrit(mainHandDamage + offHandDamage)
 end
 
--- Estimates Thunder Clap EHP damage.
-local function computeThunderClapEHPDamage(rank, talentRank)
+-- Estimates Thunder Clap damage using its selected rank.
+local function computeThunderClapEHPDamage(rank)
     rank = clamp(rank, 1, 6)
-    talentRank = clamp(talentRank, 0, 3)
-    local improvedDamage = improvedThunderClapDamageByRank[talentRank]
-    local damage = thunderClapDamageByRank[rank] * (1 + improvedDamage)
-    return applyExpectedCrit(damage)
+    return applyExpectedCrit(thunderClapDamageByRank[rank])
 end
 
+-- Estimates Heroic Strike as a main-hand hit with its rank-based bonus.
+local function computeHeroicStrikeEHPDamage(rank)
+    rank = clamp(rank, 1, 9)
+    local weaponDamage = AttributeCache:GetAverageMainHandDamage()
+    return applyExpectedCrit(weaponDamage + heroicStrikeBonusByRank[rank])
+end
+
+-- Rend cannot crit; estimate its bleed damage in armor-mitigated EHP terms.
+local function computeRendEHPDamage(rank, attackerLevel, targetLevel)
+    rank = clamp(rank, 1, 7)
+    local attackPower = AttributeCache:GetAttackPower()
+    local ticks = rendTicksByRank[rank]
+    local damage = rendDamageByRank[rank] + ticks * attackPower * 0.02
+    local armor = getArmor(targetLevel)
+    return damage * computeArmorMitigationMultiplier(armor, attackerLevel)
+end
+
+-- Estimates Revenge assuming its block, dodge, or parry condition was met.
+local function computeRevengeEHPDamage(rank)
+    rank = clamp(rank, 1, 6)
+    local attackPower = AttributeCache:GetAttackPower()
+    return applyExpectedCrit(revengeDamageByRank[rank] + attackPower * 0.25)
+end
+
+-- Converts health and armor into effective health for a given attacker level.
 local function computeEHP(hitPoints, armor, attackerLevel)
     return hitPoints + hitPoints * armor / (85 * attackerLevel + 400)
 end
@@ -204,6 +259,7 @@ local function computeSunderArmorEHPDamage(rank, attackerLevel, targetHitPoints,
         - computeEHP(targetHitPoints, remainingArmor, attackerLevel)
 end
 
+-- Returns the target-health scaling for one Sunder Armor application.
 local function computeSunderArmorEHPDamageScaling(rank, attackerLevel, targetLevel)
     local armor = getArmor(targetLevel)
     local reducedArmor = math.min(armor, getSunderArmorValue(rank))
@@ -211,9 +267,9 @@ local function computeSunderArmorEHPDamageScaling(rank, attackerLevel, targetLev
 end
 
 -- Keeps direct-ability formulas separate because each uses different ranks and player attributes.
-local function computeDirectAbilityEHPDamage(spellName)
+local function computeDirectAbilityEHPDamage(spellName, attackerLevel, targetLevel)
     if spellName == "Bloodthirst" then
-        return computeBloodthirstEHPDamage()
+        return computeBloodthirstEHPDamage(GetOption("bloodthirstRank"))
     elseif spellName == "Mortal Strike" then
         return computeMortalStrikeEHPDamage(GetOption("mortalStrikeRank"))
     elseif spellName == "Slam" then
@@ -223,9 +279,13 @@ local function computeDirectAbilityEHPDamage(spellName)
     elseif spellName == "Whirlwind" then
         return computeWhirlwindEHPDamage()
     elseif spellName == "Thunder Clap" then
-        return computeThunderClapEHPDamage(
-            GetOption("thunderClapRank"), GetOption("improvedThunderClapRank")
-        )
+        return computeThunderClapEHPDamage(GetOption("thunderClapRank"))
+    elseif spellName == "Heroic Strike" then
+        return computeHeroicStrikeEHPDamage(GetOption("heroicStrikeRank"))
+    elseif spellName == "Rend" then
+        return computeRendEHPDamage(GetOption("rendRank"), attackerLevel, targetLevel)
+    elseif spellName == "Revenge" then
+        return computeRevengeEHPDamage(GetOption("revengeRank"))
     end
 end
 
@@ -246,12 +306,11 @@ end
 -- Estimates EHP damage for a spell name, using Blizzard's canonical English name.
 function Abilities:ComputeExpectedAbilityEHPDamage(spellName, attackerLevel, targetHitPoints, targetLevel)
     if spellName == "Sunder Armor" then
-        return computeSunderArmorEHPDamage(
-            GetOption("sunderArmorRank"), attackerLevel, targetHitPoints, targetLevel
-        )
+        local rank = GetOption("sunderArmorRank")
+        return computeSunderArmorEHPDamage(rank, attackerLevel, targetHitPoints, targetLevel)
     end
 
-    return computeDirectAbilityEHPDamage(spellName)
+    return computeDirectAbilityEHPDamage(spellName, attackerLevel, targetLevel)
 end
 
 -- Returns an ability's base rage cost after configured talent reductions.
@@ -283,8 +342,7 @@ end
 -- Returns target-health scaling for spells whose impact depends on remaining target health.
 function Abilities:ComputeExpectedAbilityEHPDamageScaling(spellName, attackerLevel, targetLevel)
     if spellName == "Sunder Armor" then
-        return computeSunderArmorEHPDamageScaling(
-            GetOption("sunderArmorRank"), attackerLevel, targetLevel
-        )
+        local rank = GetOption("sunderArmorRank")
+        return computeSunderArmorEHPDamageScaling(rank, attackerLevel, targetLevel)
     end
 end

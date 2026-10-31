@@ -229,7 +229,9 @@ function Bar:Update()
         if spellName ~= sunderArmorSpellName then
             local optionKey = "compare_" .. spellName:lower():gsub("%s+", "_")
             if self.options:GetOption(optionKey) then
-                local damagePerRage = self.abilities:ComputeExpectedAbilityEHPDamagePerRage(spellName)
+                local damagePerRage = self.abilities:ComputeExpectedAbilityEHPDamagePerRage(
+                    spellName, attackerLevel, nil, targetLevel
+                )
                 local compareValue = damagePerRage * sunderRageCost
                 comparisons[#comparisons + 1] = { spellName = spellName, value = compareValue }
                 highestCompareValue = math.max(highestCompareValue, compareValue)

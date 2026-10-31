@@ -24,7 +24,7 @@ local LSM               = LibStub("LibSharedMedia-3.0")
 -- AceConfig color callbacks use an ignored first argument.
 local _
 
--- Defaults for the display and Classic ability settings in each profile.
+-- Defaults for the display and Forever ability settings in each profile.
 local defaults = {
     profile = {
         displayMode = "BAR",
@@ -44,10 +44,14 @@ local defaults = {
         improvedSunderArmorRank = 0,
         improvedThunderClapRank = 0,
         focusedRageRank = 0,
+        bloodthirstRank = 4,
         mortalStrikeRank = 4,
-        slamRank = 4,
+        slamRank = 5,
         shieldSlamRank = 4,
         thunderClapRank = 6,
+        heroicStrikeRank = 9,
+        rendRank = 7,
+        revengeRank = 6,
     },
 }
 
@@ -391,7 +395,7 @@ function Options:OnInitialize()
                     },
                 },
             },
-            -- Ability ranks and talent ranks feed the Classic damage and Rage estimates.
+            -- Ability ranks and talent ranks feed the damage and Rage estimates.
             abilities = {
                 type = "group",
                 name = "Abilities",
@@ -419,7 +423,7 @@ function Options:OnInitialize()
                         min = 1,
                         max = 4,
                         step = 1,
-                        order = 2,
+                        order = 3,
                         get = function()
                             return self.db.profile.mortalStrikeRank
                         end,
@@ -427,14 +431,29 @@ function Options:OnInitialize()
                             self:SetOption("mortalStrikeRank", value)
                         end,
                     },
+                    bloodthirstRank = {
+                        type = "range",
+                        name = "Bloodthirst rank",
+                        desc = "Set the highest rank of Bloodthirst available to your character.",
+                        min = 1,
+                        max = 4,
+                        step = 1,
+                        order = 2,
+                        get = function()
+                            return self.db.profile.bloodthirstRank
+                        end,
+                        set = function(_, value)
+                            self:SetOption("bloodthirstRank", value)
+                        end,
+                    },
                     slamRank = {
                         type = "range",
                         name = "Slam rank",
                         desc = "Set the highest rank of Slam available to your character.",
                         min = 1,
-                        max = 4,
+                        max = 5,
                         step = 1,
-                        order = 3,
+                        order = 4,
                         get = function()
                             return self.db.profile.slamRank
                         end,
@@ -449,7 +468,7 @@ function Options:OnInitialize()
                         min = 1,
                         max = 4,
                         step = 1,
-                        order = 4,
+                        order = 5,
                         get = function()
                             return self.db.profile.shieldSlamRank
                         end,
@@ -464,7 +483,7 @@ function Options:OnInitialize()
                         min = 1,
                         max = 6,
                         step = 1,
-                        order = 5,
+                        order = 6,
                         get = function()
                             return self.db.profile.thunderClapRank
                         end,
@@ -479,7 +498,7 @@ function Options:OnInitialize()
                         min = 0,
                         max = 3,
                         step = 1,
-                        order = 6,
+                        order = 7,
                         get = function()
                             return self.db.profile.improvedSunderArmorRank
                         end,
@@ -494,7 +513,7 @@ function Options:OnInitialize()
                         min = 0,
                         max = 3,
                         step = 1,
-                        order = 7,
+                        order = 8,
                         get = function()
                             return self.db.profile.focusedRageRank
                         end,
@@ -505,16 +524,61 @@ function Options:OnInitialize()
                     improvedThunderClapRank = {
                         type = "range",
                         name = "Improved Thunder Clap rank",
-                        desc = "Set the talent rank that reduces Thunder Clap's Rage cost and increases its damage.",
+                        desc = "Set the talent rank that reduces Thunder Clap's Rage cost.",
                         min = 0,
                         max = 3,
                         step = 1,
-                        order = 8,
+                        order = 9,
                         get = function()
                             return self.db.profile.improvedThunderClapRank
                         end,
                         set = function(_, value)
                             self:SetOption("improvedThunderClapRank", value)
+                        end,
+                    },
+                    heroicStrikeRank = {
+                        type = "range",
+                        name = "Heroic Strike rank",
+                        desc = "Set the highest rank of Heroic Strike available to your character.",
+                        min = 1,
+                        max = 9,
+                        step = 1,
+                        order = 10,
+                        get = function()
+                            return self.db.profile.heroicStrikeRank
+                        end,
+                        set = function(_, value)
+                            self:SetOption("heroicStrikeRank", value)
+                        end,
+                    },
+                    rendRank = {
+                        type = "range",
+                        name = "Rend rank",
+                        desc = "Set the highest rank of Rend available to your character.",
+                        min = 1,
+                        max = 7,
+                        step = 1,
+                        order = 11,
+                        get = function()
+                            return self.db.profile.rendRank
+                        end,
+                        set = function(_, value)
+                            self:SetOption("rendRank", value)
+                        end,
+                    },
+                    revengeRank = {
+                        type = "range",
+                        name = "Revenge rank",
+                        desc = "Set the highest rank of Revenge available to your character.",
+                        min = 1,
+                        max = 6,
+                        step = 1,
+                        order = 12,
+                        get = function()
+                            return self.db.profile.revengeRank
+                        end,
+                        set = function(_, value)
+                            self:SetOption("revengeRank", value)
                         end,
                     },
                 },
