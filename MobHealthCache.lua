@@ -1,19 +1,18 @@
---[[ 
+--[[
     MobHealthCache
 
-    Since UnitHealthMax is secret if called in combat we may not always be able to access fresh data for mob health.
-    The objective of this cache is to store the observed max health values of targeted mobs for nonsecret access in
-    combat. The primary function is EstimateTargetMaxHealth, which is how other parts of the addon are expected to get
-    health values for targets.
-    
-    Cached health values are indexed by the tuple (zone, level, classification). For example, the health of a Mo'grosh
-    Ogre may be stored under the tuple ("Dun Morogh", 18, elite). We do not use UnitName, as it is secret in combat.
-    
-    It may be possible to refine the cache by using subzones and other identifying information like UnitPowerType.
+    Since UnitHealthMax is secret, we cannot access fresh mob health in combat.
+    This cache estimates and stores mob health for use by EstimateTargetMaxHealth().
+    Estimates are derived from damage meter segments matched to recently targeted mobs.
+
+    Cached health values are indexed by (zone, level, classification, power type). We do not use UnitName, as it is
+    secret in combat.
 --]]
 
 local addon = LibStub("AceAddon-3.0"):GetAddon("Sunderer")
 local mobHealthCache = addon:NewModule("MobHealthCache", "AceEvent-3.0")
+SundererMobHealthCache = SundererMobHealthCache or {}
+local targetSnapshots = {}
 
 -- Approximate maximum health for normal creatures by level.
 local approximateMaxHealthByLevel = {
@@ -37,72 +36,216 @@ local approximateHealthMultiplierByClassification = {
     worldboss = 1000,
 }
 
--- Stores observed health by zone, level, and classification.
-SundererMobHealthCache = SundererMobHealthCache or {}
-
--- Saves public health observations for eligible targets.
-local function captureTargetHealth()
-    -- Exclude players and player-controlled units from creature observations.
-    if not UnitExists("target") or UnitIsPlayer("target") or UnitPlayerControlled("target") then
+-- Save the target signature while its level and GUID are readable.
+local function captureTargetSnapshot()
+    if UnitAffectingCombat("player") or not UnitExists("target")
+        or UnitIsPlayer("target") or UnitPlayerControlled("target")
+    then
         return
     end
 
-    -- Secret health cannot be persisted; public health is stored under its target tuple.
-    local maxHealth = UnitHealthMax("target")
-    if issecretvalue(maxHealth) then
-       return
+    local guid = UnitGUID("target")
+    if not guid then
+        print("Sunderer: could not record target snapshot; target GUID is unavailable.")
+        return
     end
 
-    local zone = GetRealZoneText()
+    local creatureID = C_CreatureInfo.GetCreatureID(guid)
     local level = UnitLevel("target")
     local classification = UnitClassification("target")
-    local zoneCache = SundererMobHealthCache[zone]
-    if not zoneCache then
-        zoneCache = {}
-        SundererMobHealthCache[zone] = zoneCache
+    local zone = GetRealZoneText()
+    local powerType = UnitPowerType("target")
+    if creatureID <= 0 or level <= 0 then
+        print("Sunderer: could not record target snapshot; target metadata is unavailable.")
+        return
     end
 
-    local levelCache = zoneCache[level]
-    if not levelCache then
-        levelCache = {}
-        zoneCache[level] = levelCache
-    end
-
-    levelCache[classification] = maxHealth
+    targetSnapshots[guid] = {
+        creatureID = creatureID,
+        zone = zone,
+        level = level,
+        classification = classification,
+        powerType = powerType,
+    }
+    print(string.format(
+        "Sunderer: recorded target snapshot (creature %d, %s, level %d, %s, power type %d).",
+        creatureID, zone, level, classification, powerType
+    ))
 end
 
--- Starts collecting health observations when targets change and combat ends.
+-- Estimate mob health from a completed Damage Meter session and update the cache.
+local function cacheCombatSession(combatSession)
+    if not combatSession then
+        print("Sunderer: Damage Meter returned no combat session data.")
+        return
+    end
+
+    local combatSources = combatSession.combatSources
+    if issecretvalue(combatSources) then
+        print("Sunderer: skipped health estimate because Damage Meter session data is secret.")
+        return
+    end
+
+    local snapshots = targetSnapshots
+    -- Multiple source rows make the session total impossible to attribute to one creature type.
+    if #combatSources ~= 1 then
+        targetSnapshots = {}
+        print(string.format(
+            "Sunderer: skipped health estimate; session has %d source rows (requires one).",
+            #combatSources
+        ))
+        return
+    end
+
+    local source = combatSources[1]
+    local creatureID = source.sourceCreatureID
+    if not creatureID or creatureID <= 0 then
+        print("Sunderer: skipped health estimate because the source creature ID is unavailable.")
+        return
+    end
+
+    local name = source.name
+
+    -- Look through the target snapshots to try to find something matching the mob in our segment row.
+    local classification = source.classification
+    local zone = GetRealZoneText()
+    local estimate = combatSession.totalAmount
+    local snapshot
+    local ambiguous = false
+
+    if issecretvalue(estimate) then
+        print("Sunderer: skipped health estimate because session damage is secret.")
+    elseif not estimate or estimate <= 0 then
+        print(string.format("Sunderer: skipped %s; session damage is unavailable.", name))
+    else
+        -- Reuse a recent target signature only when all matching snapshots agree on level and power type.
+        for _, targetSnapshot in pairs(snapshots) do
+            if targetSnapshot.creatureID == creatureID and targetSnapshot.zone == zone
+                and targetSnapshot.classification == classification
+            then
+                if snapshot and (targetSnapshot.level ~= snapshot.level) then
+                    -- Recent matching snapshots may represent mobs with different levels.
+                    ambiguous = true
+                    break
+                end
+                snapshot = targetSnapshot
+            end
+        end
+
+        if not snapshot then
+            -- If we do not have any snapshots, or the ones we have are ambiguous, write nothing.
+            print(string.format(
+                "Sunderer: skipped %s; no snapshot matches zone %s and classification %s.",
+                name, zone, classification
+            ))
+        elseif ambiguous then
+            print(string.format(
+                "Sunderer: skipped %s; matching snapshots disagree on level.",
+                name
+            ))
+        else
+            -- Else we have a single snapshot that matches the source row. Write the estimate to the cache.
+            local level = snapshot.level
+            local powerType = snapshot.powerType
+            local zoneCache = SundererMobHealthCache[zone] or {}
+            local levelCache = zoneCache[level] or {}
+            zoneCache[level] = levelCache
+            SundererMobHealthCache[zone] = zoneCache
+
+            local classificationCache = levelCache[classification]
+            if type(classificationCache) ~= "table" then
+                classificationCache = {}
+                levelCache[classification] = classificationCache
+            end
+
+            classificationCache[powerType] = estimate
+            print(string.format(
+                "Sunderer: CACHE WRITE source=%s creatureID=%d value=%.0f "
+                    .. "key=(zone=%q, level=%d, classification=%s, powerType=%d).",
+                name, creatureID, estimate, zone, level, classification, powerType
+            ))
+        end
+    end
+
+    -- Discard snapshots for this creature for the future.
+    for guid, snapshot in pairs(targetSnapshots) do
+        if snapshot.creatureID == creatureID then
+            targetSnapshots[guid] = nil
+        end
+    end
+end
+
+local function readCombatSession(sessionID)
+    local isAvailable, failureReason = C_DamageMeter.IsDamageMeterAvailable()
+    if not isAvailable then
+        print("Sunderer: Damage Meter is unavailable: " .. failureReason)
+        return
+    end
+
+    local damageMeterType = Enum.DamageMeterType.EnemyDamageTaken
+    local combatSession
+    if sessionID then
+        combatSession = C_DamageMeter.GetCombatSessionFromID(sessionID, damageMeterType)
+    else
+        local currentSession = Enum.DamageMeterSessionType.Current
+        combatSession = C_DamageMeter.GetCombatSessionFromType(currentSession, damageMeterType)
+    end
+
+    cacheCombatSession(combatSession)
+end
+
+-- Records target metadata while it is readable outside combat.
+function mobHealthCache:OnPlayerTargetChanged()
+    captureTargetSnapshot()
+end
+
+-- Reads session data when it is available outside combat and ignores secret results.
+function mobHealthCache:OnDamageMeterCombatSessionUpdated(event, damageMeterType, sessionID)
+    if damageMeterType ~= Enum.DamageMeterType.EnemyDamageTaken or sessionID == 0 then
+        return
+    end
+
+    readCombatSession(sessionID)
+end
+
+-- Reads the current session when combat ends.
+function mobHealthCache:OnPlayerRegenEnabled()
+    readCombatSession()
+end
+
+-- Starts listening for combat meter updates and combat end.
 function mobHealthCache:OnEnable()
-    self:RegisterEvent("PLAYER_TARGET_CHANGED", captureTargetHealth)
-    self:RegisterEvent("PLAYER_REGEN_ENABLED", captureTargetHealth)
+    self:RegisterEvent("PLAYER_TARGET_CHANGED", "OnPlayerTargetChanged")
+    self:RegisterEvent("PLAYER_ENTERING_WORLD", "OnPlayerTargetChanged")
+    self:RegisterEvent("DAMAGE_METER_COMBAT_SESSION_UPDATED", "OnDamageMeterCombatSessionUpdated")
+    self:RegisterEvent("PLAYER_REGEN_ENABLED", "OnPlayerRegenEnabled")
+    captureTargetSnapshot()
 end
 
--- Stops collecting health observations while the module is disabled.
+-- Stops listening for combat meter updates and combat end.
 function mobHealthCache:OnDisable()
     self:UnregisterEvent("PLAYER_TARGET_CHANGED")
+    self:UnregisterEvent("PLAYER_ENTERING_WORLD")
+    self:UnregisterEvent("DAMAGE_METER_COMBAT_SESSION_UPDATED")
     self:UnregisterEvent("PLAYER_REGEN_ENABLED")
 end
 
--- Estimates target maximum health
+-- Estimates target maximum health from its level and classification.
 function mobHealthCache:EstimateTargetMaxHealth()
-    -- Prefer the exact current value whenever it isn't secret.
-    local maxHealth = UnitHealthMax("target")
-    if not issecretvalue(maxHealth) then
-        return maxHealth
-    end
+    local zone = GetRealZoneText()
+    local level = UnitLevel("target")
+    local classification = UnitClassification("target")
+    local powerType = UnitPowerType("target")
 
-    -- Reuse the cached value, if it exists
-    local zoneCache = SundererMobHealthCache[GetRealZoneText()]
-    local levelCache = zoneCache and zoneCache[UnitLevel("target")]
-    local cachedHealth = levelCache and levelCache[UnitClassification("target")]
+    local zoneCache = SundererMobHealthCache[zone]
+    local levelCache = zoneCache and zoneCache[level]
+    local classificationCache = levelCache and levelCache[classification]
+    local cachedHealth = type(classificationCache) == "table" and classificationCache[powerType]
     if cachedHealth then
         return cachedHealth
     end
 
-    -- No hit in the cache. Use a rough estimate based on a table of typical mob health values, with a multiplier for
-    -- elites and bosses.
-    local level = math.max(1, math.min(UnitLevel("target"), 63))
-    local classification = UnitClassification("target")
+    level = math.max(1, math.min(level, 63))
     local baseHealth = approximateMaxHealthByLevel[level]
     local multiplier = approximateHealthMultiplierByClassification[classification]
     return baseHealth * multiplier
