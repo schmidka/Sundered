@@ -2,7 +2,7 @@
     AttributeCache
 
     Samples player combat attributes at the end of combat and caches them. This allows them to be retreived in combat,
-    when they will be stale but not secret. The cache uses an exponential decaying average of the last few samples of 
+    when they will be stale but not secret. The cache uses an exponential decaying average of the last few samples of
     each attribute. The hope is that this will be a reasonable estimator for the average in-combat attribute.
 
     Currently this never returns the exact, current values even when they are not secret. This is by design:
@@ -82,6 +82,27 @@ local function currentCritChance()
     return critChance
 end
 
+-- Reads the player's melee hit bonus for the attack estimates.
+local function currentHitChance()
+    local hitRatingBonus = GetCombatRatingBonus(CR_HIT_MELEE)
+    local hitModifier = GetHitModifier()
+    if issecretvalue(hitRatingBonus) or issecretvalue(hitModifier) then
+        return nil
+    end
+
+    return hitRatingBonus + hitModifier
+end
+
+-- Reads the main-hand speed used by the white-swing Rage estimate.
+local function currentMainHandSpeed()
+    local mainHandSpeed = UnitAttackSpeed("player")
+    if issecretvalue(mainHandSpeed) then
+        return nil
+    end
+
+    return mainHandSpeed
+end
+
 local function currentShieldBlock()
     local shieldBlock = GetShieldBlock()
     if issecretvalue(shieldBlock) then
@@ -126,6 +147,8 @@ function AttributeCache:GetCharacterStats()
         characterStats.averageMainHandDamage = normalizeSavedAverage(characterStats.averageMainHandDamage)
         characterStats.averageOffHandDamage = normalizeSavedAverage(characterStats.averageOffHandDamage)
         characterStats.critChance = normalizeSavedAverage(characterStats.critChance)
+        characterStats.hitChance = normalizeSavedAverage(characterStats.hitChance)
+        characterStats.mainHandSpeed = normalizeSavedAverage(characterStats.mainHandSpeed)
         characterStats.shieldBlock = normalizeSavedAverage(characterStats.shieldBlock)
         self.loadedCharacters[characterKey] = true
     end
@@ -146,6 +169,8 @@ function AttributeCache:Capture()
     updateAverage(stats, "averageMainHandDamage", mainHandDamage)
     updateAverage(stats, "averageOffHandDamage", offHandDamage)
     updateAverage(stats, "critChance", currentCritChance())
+    updateAverage(stats, "hitChance", currentHitChance())
+    updateAverage(stats, "mainHandSpeed", currentMainHandSpeed())
     updateAverage(stats, "shieldBlock", currentShieldBlock())
 end
 
@@ -167,6 +192,21 @@ end
 -- Returns the cached average Crit Chance, or zero when it is unavailable.
 function AttributeCache:GetCritChance()
     return self:GetCharacterStats().critChance or 0
+end
+
+-- Returns the cached average melee hit bonus, or zero when unavailable.
+function AttributeCache:GetHitChance()
+    return self:GetCharacterStats().hitChance or 0
+end
+
+-- Provides the assumed Classic weapon skill for attack estimates.
+function AttributeCache:GetWeaponSkill()
+    return UnitLevel("player") * 5
+end
+
+-- Returns the cached average main-hand weapon speed, or zero when unavailable.
+function AttributeCache:GetMainHandSpeed()
+    return self:GetCharacterStats().mainHandSpeed or 0
 end
 
 -- Returns the cached average Shield Block value, or zero when unavailable.

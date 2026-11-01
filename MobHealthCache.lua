@@ -32,7 +32,7 @@ local approximateHealthMultiplierByClassification = {
     trivial = 1,
     minus = 0.5,
     rare = 1.3,
-    elite = 1.3,
+    elite = 2,
     rareelite = 3,
     worldboss = 1000,
 }
@@ -50,7 +50,7 @@ local function captureTargetHealth()
     -- Secret health cannot be persisted; public health is stored under its target tuple.
     local maxHealth = UnitHealthMax("target")
     if issecretvalue(maxHealth) then
-        return
+       return
     end
 
     local zone = GetRealZoneText()
