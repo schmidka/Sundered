@@ -14,9 +14,8 @@ local Options   = nil
 local Icon      = nil
 local Bar       = nil
 
--- Keep Blizzard's localized abbreviations while tuning the displayed precision below 100K.
--- The 10K breakpoint keeps about three significant digits; the zero
--- breakpoint avoids showing fractional values below one.
+-- Keep Blizzard's localized abbreviations while tuning the displayed precision below 100K. The 10K breakpoint keeps
+-- about three significant digits; the zero breakpoint avoids showing fractional values below one.
 local numberAbbreviationOptions = {
     breakpointData = {},
 }

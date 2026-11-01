@@ -21,7 +21,6 @@ local AceDB             = LibStub("AceDB-3.0")
 local AceDBOptions      = LibStub("AceDBOptions-3.0")
 local LSM               = LibStub("LibSharedMedia-3.0")
 
--- AceConfig color callbacks use an ignored first argument.
 local _
 
 -- Defaults for the display and Forever ability settings in each profile.
