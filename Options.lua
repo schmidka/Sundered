@@ -10,7 +10,7 @@
     especially AI-generated. No one should manually write AceConfig options tables, that's just cruel punishment.
 ]]
 
-local Addon = LibStub("AceAddon-3.0"):GetAddon("Sunderer")
+local Addon = LibStub("AceAddon-3.0"):GetAddon("Sundered")
 
 local Options = Addon:NewModule("Options")
 Options.callbacks = LibStub("CallbackHandler-1.0"):New(Options)
@@ -151,7 +151,7 @@ end
 -- Saves a profile setting and notifies the addon so dependent displays can refresh.
 function Options:SetOption(key, value)
     self.db.profile[key] = value
-	self.callbacks:Fire("Sunderer" .. "_SETTING_CHANGED", key, value)
+	self.callbacks:Fire("Sundered_SETTING_CHANGED", key, value)
 end
 
 -- Returns a setting from the active profile.
@@ -173,12 +173,12 @@ function Options:OnInitialize()
     end
 
     -- Open the saved profile database before building controls that read its values.
-	self.db = AceDB:New("SundererDB", defaults, "Default")
+	self.db = AceDB:New("SunderedDB", defaults, "Default")
 
     -- Options table describing the Options UI layout for AceConfig and AceConfigDialog.
     self.options = {
         type = "group",
-        name = "Sunderer",
+        name = "Sundered",
         args = {
             -- Display options configure presentation and comparison markers.
             display = {
@@ -692,8 +692,8 @@ function Options:OnInitialize()
     self.db.RegisterCallback(self, "OnProfileReset", "OnProfileChanged")
 
     -- add options to ace config and the game ui
-	AceConfig:RegisterOptionsTable("Sunderer", self.options)
-	AceConfigDialog:AddToBlizOptions("Sunderer")
+	AceConfig:RegisterOptionsTable("Sundered", self.options)
+	AceConfigDialog:AddToBlizOptions("Sundered")
 end
 
 function Options:OnEnable()

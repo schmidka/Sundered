@@ -17,7 +17,7 @@
     Classic-based; ability ranks and damage values are updated for Forever where known.
 ]]
 
-local Addon = LibStub("AceAddon-3.0"):GetAddon("Sunderer")
+local Addon = LibStub("AceAddon-3.0"):GetAddon("Sundered")
 local Abilities = Addon:NewModule("Abilities")
 local AttributeCache = Addon:GetModule("AttributeCache")
 

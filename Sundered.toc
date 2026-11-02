@@ -1,6 +1,6 @@
 ## Interface: 120105
 
-## Title: Sunderer
+## Title: Sundered
 ## Notes: Estimates the damage gain from using Sunder Armor, so you don't have to
 ## IconTexture: Interface\Icons\Ability_Warrior_Sunder
 ## Author: Karl Schmidt
@@ -12,11 +12,11 @@
 
 ## OptionalDeps: Ace3, LibSharedMedia-3.0
 ## X-Embeds: Ace3, LibSharedMedia-3.0
-## SavedVariables: SundererDB, SundererAbilityCache, SundererMobHealthCache
+## SavedVariables: SunderedDB, SunderedAbilityCache, SunderedMobHealthCache
 #@no-lib-strip@
 embeds.xml
 #@end-no-lib-strip@
-Sunderer.lua
+Sundered.lua
 AttributeCache.lua
 MobHealthCache.lua
 Abillities.lua

@@ -10,7 +10,7 @@
     representing the expected average is preferable.
 ]]
 
-local Addon = LibStub("AceAddon-3.0"):GetAddon("Sunderer")
+local Addon = LibStub("AceAddon-3.0"):GetAddon("Sundered")
 local AttributeCache = Addon:NewModule("AttributeCache", "AceEvent-3.0")
 
 -- Exponential decay smoothing. The higher the smoothing the faster the decay. No, I don't know why ol' Slopsy did it
@@ -99,8 +99,8 @@ end
 
 -- Initializes the saved cache and starts listening for stat sampling events.
 function AttributeCache:OnEnable()
-    SundererAbilityCache = SundererAbilityCache or {}
-    self.database = SundererAbilityCache
+    SunderedAbilityCache = SunderedAbilityCache or {}
+    self.database = SunderedAbilityCache
     self.loadedCharacters = {}
 
     self:RegisterEvent("PLAYER_ENTERING_WORLD", "Capture")

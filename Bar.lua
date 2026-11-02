@@ -6,7 +6,7 @@
     showing the EHP damage of various non-Sunder abilities for comparison.
 ]]
 
-local Addon = LibStub("AceAddon-3.0"):GetAddon("Sunderer")
+local Addon = LibStub("AceAddon-3.0"):GetAddon("Sundered")
 local Bar = Addon:NewModule("Bar")
 local LSM = LibStub("LibSharedMedia-3.0")
 local sunderArmorSpellName = "Sunder Armor"

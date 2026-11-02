@@ -1,14 +1,14 @@
 -- Copyright (c) 2026 Karl Schmidt
 --[[
-    Sunderer
+    Sundered
 
     This is the entry point and primary event handler for the addon. It owns the main addon frame and acts as to
     control and coordinate the other aspects.
 
     Currently it also houses some common uility functions. These may be moved in the future.
 ]]
-Sunderer = LibStub("AceAddon-3.0"):NewAddon("Sunderer", "AceEvent-3.0", "AceConsole-3.0")
-Sunderer.callbacks = LibStub("CallbackHandler-1.0"):New(Sunderer)
+Sundered = LibStub("AceAddon-3.0"):NewAddon("Sundered", "AceEvent-3.0", "AceConsole-3.0")
+Sundered.callbacks = LibStub("CallbackHandler-1.0"):New(Sundered)
 
 -- Module references initialized after AceAddon loads the addon.
 local Options   = nil
@@ -45,19 +45,19 @@ table.insert(numberAbbreviationOptions.breakpointData, {
 })
 
 -- Formats an EHP damage value using Blizzard's localized abbreviation rules.
-function Sunderer:AbbreviateDamage(value)
+function Sundered:AbbreviateDamage(value)
     return AbbreviateNumbers(value, numberAbbreviationOptions)
 end
 
 -- Creates the shared display frame and initializes the icon and bar modules.
-function Sunderer:OnInitialize()
+function Sundered:OnInitialize()
     Options = self:GetModule("Options")
     Icon = self:GetModule("Icon")
     Bar = self:GetModule("Bar")
 
-    self:RegisterChatCommand("sunderer", "ChatCommand")
+    self:RegisterChatCommand("sundered", "ChatCommand")
 
-    self.displayFrame = CreateFrame("Frame", "SundererDisplay", UIParent)
+    self.displayFrame = CreateFrame("Frame", "SunderedDisplay", UIParent)
     self.displayFrame:SetSize(32, 32)
     self.displayFrame:SetPoint("CENTER")
     self.displayFrame:SetMovable(true)
@@ -68,36 +68,36 @@ function Sunderer:OnInitialize()
 end
 
 -- Reapplies display options and refreshes the current estimate after a setting changes.
-function Sunderer:UpdateSetting(event, key, value)
+function Sundered:UpdateSetting(event, key, value)
     -- Ignore parameters, just apply all the settings
     self:ApplyOptions()
     self:Update()
 end
 
 -- Starts display updates for target, health, world, combat, and profile-setting changes.
-function Sunderer:OnEnable()
+function Sundered:OnEnable()
     self:RegisterEvent("PLAYER_TARGET_CHANGED", "Update")
     self:RegisterEvent("PLAYER_ENTERING_WORLD", "Update")
     self:RegisterEvent("PLAYER_REGEN_ENABLED", "Update")
     self:RegisterEvent("UNIT_HEALTH", "Update")
-    Options.RegisterCallback(self, "Sunderer_SETTING_CHANGED", "UpdateSetting")
+    Options.RegisterCallback(self, "Sundered_SETTING_CHANGED", "UpdateSetting")
 
     self:ApplyOptions()
     self:Update()
 end
 
 -- Unregisters display events and hides the shared frame.
-function Sunderer:OnDisable()
+function Sundered:OnDisable()
     self:UnregisterEvent("PLAYER_TARGET_CHANGED")
     self:UnregisterEvent("PLAYER_ENTERING_WORLD")
     self:UnregisterEvent("PLAYER_REGEN_ENABLED")
     self:UnregisterEvent("UNIT_HEALTH")
-    Options.UnregisterCallback(self, "Sunderer_SETTING_CHANGED")
+    Options.UnregisterCallback(self, "Sundered_SETTING_CHANGED")
     self.displayFrame:Hide()
 end
 
 -- Applies the active profile to both display modules and sizes their shared frame.
-function Sunderer:ApplyOptions()
+function Sundered:ApplyOptions()
     local profile = Options:GetCurrentProfile()
     if not profile then
         return
@@ -134,7 +134,7 @@ function Sunderer:ApplyOptions()
 end
 
 -- Returns the movable display frame to the center of the screen.
-function Sunderer:ResetDisplayPosition()
+function Sundered:ResetDisplayPosition()
     if not self.displayFrame then
         return
     end
@@ -145,7 +145,7 @@ function Sunderer:ResetDisplayPosition()
 end
 
 -- Hides the display without a target or refreshes both views for the current target.
-function Sunderer:Update()
+function Sundered:Update()
     if not self.displayFrame then
         return
     end

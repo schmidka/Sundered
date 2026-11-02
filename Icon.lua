@@ -8,7 +8,7 @@
     make it a denser alternative to the bar mode, but for now it's a secondary concern.
 ]]
 
-local Addon = LibStub("AceAddon-3.0"):GetAddon("Sunderer")
+local Addon = LibStub("AceAddon-3.0"):GetAddon("Sundered")
 local Icon = Addon:NewModule("Icon")
 local LSM = LibStub("LibSharedMedia-3.0")
 local sunderArmorSpellName = "Sunder Armor"
@@ -31,7 +31,7 @@ function Icon:Initialize(parent)
     self.parent = parent
     self.abilities = Addon:GetModule("Abilities")
     self.mobHealthCache = Addon:GetModule("MobHealthCache")
-    self.frame = CreateFrame("Button", "SundererIcon", parent)
+    self.frame = CreateFrame("Button", "SunderedIcon", parent)
 
     local texture = self.frame:CreateTexture(nil, "ARTWORK")
     texture:SetAllPoints()

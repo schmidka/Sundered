@@ -14,18 +14,18 @@
     This is of debatable precision but it's the best I can do with what the secretvalue API allows.
 --]]
 
-local addon = LibStub("AceAddon-3.0"):GetAddon("Sunderer")
+local addon = LibStub("AceAddon-3.0"):GetAddon("Sundered")
 local mobHealthCache = addon:NewModule("MobHealthCache", "AceEvent-3.0")
-SundererMobHealthCache = SundererMobHealthCache or {}
+SunderedMobHealthCache = SunderedMobHealthCache or {}
 local targetSnapshots = {}
 
 -- Restore cache branches if saved data is incomplete or was created by an older addon version.
 local function ensureHealthCache()
-    SundererMobHealthCache.byLevelClassification = SundererMobHealthCache.byLevelClassification or {}
-    SundererMobHealthCache.byLevelClassificationPowerType =
-        SundererMobHealthCache.byLevelClassificationPowerType or {}
-    SundererMobHealthCache.byLevelClassificationPowerTypeZone =
-        SundererMobHealthCache.byLevelClassificationPowerTypeZone or {}
+    SunderedMobHealthCache.byLevelClassification = SunderedMobHealthCache.byLevelClassification or {}
+    SunderedMobHealthCache.byLevelClassificationPowerType =
+        SunderedMobHealthCache.byLevelClassificationPowerType or {}
+    SunderedMobHealthCache.byLevelClassificationPowerTypeZone =
+        SunderedMobHealthCache.byLevelClassificationPowerTypeZone or {}
 end
 
 -- Approximate maximum health for normal creatures by level.
@@ -207,7 +207,7 @@ local function cacheCombatSession(combatSession)
         -- mob and update the cached averages with its estimated health.
         if snapshot and not ambiguous then
             updateHealthCaches(
-                SundererMobHealthCache, snapshot.level, classification, snapshot.powerType, zone, estimate
+                SunderedMobHealthCache, snapshot.level, classification, snapshot.powerType, zone, estimate
             )
         end
     end
@@ -286,7 +286,7 @@ function mobHealthCache:EstimateTargetMaxHealth()
     local powerType = UnitPowerType("target")
 
     -- Traverse the cache hierarchy, starting with the most specific: (level/classification/power type/zone)
-    local levelCache = SundererMobHealthCache.byLevelClassificationPowerTypeZone[level]
+    local levelCache = SunderedMobHealthCache.byLevelClassificationPowerTypeZone[level]
     local classificationCache = levelCache and levelCache[classification]
     local powerTypeCache = classificationCache and classificationCache[powerType]
     local cachedHealth = powerTypeCache and powerTypeCache[zone]
@@ -295,7 +295,7 @@ function mobHealthCache:EstimateTargetMaxHealth()
     end
 
     -- Fall back to the next most specific: (level/classification/power type)
-    levelCache = SundererMobHealthCache.byLevelClassificationPowerType[level]
+    levelCache = SunderedMobHealthCache.byLevelClassificationPowerType[level]
     classificationCache = levelCache and levelCache[classification]
     cachedHealth = classificationCache and classificationCache[powerType]
     if cachedHealth then
@@ -303,7 +303,7 @@ function mobHealthCache:EstimateTargetMaxHealth()
     end
 
     -- Fall back to the next most specific: (level/classification)
-    levelCache = SundererMobHealthCache.byLevelClassification[level]
+    levelCache = SunderedMobHealthCache.byLevelClassification[level]
     cachedHealth = levelCache and levelCache[classification]
     if cachedHealth then
         return cachedHealth
@@ -311,7 +311,7 @@ function mobHealthCache:EstimateTargetMaxHealth()
 
     -- Fall back to scaling up the normal mob health estimate by our approximate factor.
     if classification ~= "normal" then
-        levelCache = SundererMobHealthCache.byLevelClassification[level]
+        levelCache = SunderedMobHealthCache.byLevelClassification[level]
         local normalHealth = levelCache and levelCache.normal
         if normalHealth then
             return normalHealth * approximateHealthMultiplierByClassification[classification]
