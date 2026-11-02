@@ -1,7 +1,15 @@
 ## Interface: 120105
+
 ## Title: Sunderer
-## Notes: A World of Warcraft addon.
+## Notes: Estimates the damage gain from using Sunder Armor, so you don't have to
+## IconTexture: Interface\Icons\Ability_Warrior_Sunder
+## Author: Karl Schmidt
 ## Version: 0.1.0
+
+## Category Combat
+## X-Category: Combat
+## X-License: MPL-2.0
+
 ## OptionalDeps: Ace3, LibSharedMedia-3.0
 ## X-Embeds: Ace3, LibSharedMedia-3.0
 ## SavedVariables: SundererDB, SundererAbilityCache, SundererMobHealthCache
