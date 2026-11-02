@@ -49,6 +49,11 @@ function Sundered:AbbreviateDamage(value)
     return AbbreviateNumbers(value, numberAbbreviationOptions)
 end
 
+-- Opens the addon options panel from the slash command.
+function Sundered:ChatCommand()
+    Options:Open()
+end
+
 -- Creates the shared display frame and initializes the icon and bar modules.
 function Sundered:OnInitialize()
     Options = self:GetModule("Options")
@@ -63,7 +68,7 @@ function Sundered:OnInitialize()
     self.displayFrame:SetMovable(true)
     self.displayFrame:SetClampedToScreen(true)
 
-    Icon:Initialize(self.displayFrame)
+    self:RegisterEvent("ADDON_LOADED", "OnAddonLoaded")
     Bar:Initialize(self.displayFrame)
 end
 
@@ -86,38 +91,43 @@ function Sundered:OnEnable()
     self:Update()
 end
 
+-- Reapply a saved anchor when its target frame's addon becomes available.
+function Sundered:OnAddonLoaded(event, addonName)
+    self:ApplyDisplayPosition()
+end
+
 -- Unregisters display events and hides the shared frame.
 function Sundered:OnDisable()
     self:UnregisterEvent("PLAYER_TARGET_CHANGED")
     self:UnregisterEvent("PLAYER_ENTERING_WORLD")
     self:UnregisterEvent("PLAYER_REGEN_ENABLED")
     self:UnregisterEvent("UNIT_HEALTH")
+    self:UnregisterEvent("ADDON_LOADED")
     Options.UnregisterCallback(self, "Sundered_SETTING_CHANGED")
     self.displayFrame:Hide()
 end
 
--- Applies the active profile to both display modules and sizes their shared frame.
+-- Applies the active profile to the bar and icon modules and sizes their shared frame.
 function Sundered:ApplyOptions()
     local profile = Options:GetCurrentProfile()
     if not profile then
         return
     end
 
-    local isBar = profile.displayMode == "BAR"
-    Icon:SetShown(not isBar)
-    Bar:SetShown(isBar)
+    Bar:SetShown(true)
 
-    Icon:SetIconSize(profile.iconSize)
-    Icon:SetTextSize(profile.textSize)
     Icon:SetFont(profile.font)
-    Icon:SetTextPosition(profile.textPosition)
+    Icon:SetCooldownEnabled(profile.cooldownDisplayEnabled)
+    Icon:SetWarningGlowEnabled(profile.warningGlowEnabled)
+    Icon:SetWarningGlowTexture(profile.warningGlowTexture)
+    Icon:SetWarningGlowThreshold(profile.warningGlowThreshold)
 
+    Bar:SetIconSize(profile.iconSize)
     Bar:SetWidth(profile.barWidth)
     Bar:SetHeight(profile.barHeight)
-    Bar:SetTextSize(profile.textSize)
     Bar:SetFont(profile.font)
     Bar:SetTexture(profile.barTexture)
-    Bar:SetIconPosition(profile.barIconPosition)
+    Bar:SetIconPosition(profile.iconPosition)
     Bar:SetColors(
         profile.barAboveThresholdColor,
         profile.barBelowThresholdColor,
@@ -125,23 +135,87 @@ function Sundered:ApplyOptions()
     )
     Bar:SetColorShiftEnabled(profile.barColorShiftEnabled)
 
-    if isBar then
-        local iconWidth = profile.barIconPosition == "NONE" and 0 or profile.barHeight
-        self.displayFrame:SetSize(profile.barWidth + iconWidth, profile.barHeight)
-    else
-        self.displayFrame:SetSize(profile.iconSize, profile.iconSize)
-    end
+    local iconWidth = profile.iconPosition == "NONE" and 0 or profile.iconSize
+    self.displayFrame:SetSize(profile.barWidth + iconWidth, profile.barHeight)
+    self.displayFrame:SetMovable(not profile.locked)
+    self:ApplyDisplayPosition()
+    Icon:Update()
 end
 
--- Returns the movable display frame to the center of the screen.
+-- Resolves a named anchor point to its screen coordinates for saving drag offsets.
+local function getPointCoordinates(frame, point)
+    local left, bottom, width, height = frame:GetRect()
+    if not left or not bottom or not width or not height then
+        return nil
+    end
+
+    local x = left + (point:find("LEFT") and 0 or point:find("RIGHT") and width or width / 2)
+    local y = bottom + (point:find("BOTTOM") and 0 or point:find("TOP") and height or height / 2)
+    return x, y
+end
+
+-- Applies the profile's anchor, falling back visibly if a saved target is unavailable.
+function Sundered:ApplyDisplayPosition()
+    local profile = Options:GetCurrentProfile()
+    if not profile or not self.displayFrame then
+        return
+    end
+
+    local frameName = profile.anchorFrame or "UIParent"
+    local relativeFrame = _G[frameName]
+    if not relativeFrame then
+        if self.missingAnchorFrame ~= frameName then
+            self:Print("Anchor frame " .. frameName .. " is not loaded; using UIParent until it is available.")
+            self.missingAnchorFrame = frameName
+        end
+        relativeFrame = UIParent
+    else
+        self.missingAnchorFrame = nil
+    end
+
+    self.displayFrame:ClearAllPoints()
+    self.displayFrame:SetPoint(
+        profile.framePoint or "CENTER",
+        relativeFrame,
+        profile.relativePoint or "CENTER",
+        profile.xOffset or 0,
+        profile.yOffset or 0
+    )
+end
+
+-- Saves the moved frame's current offsets relative to the configured anchor.
+function Sundered:SaveDisplayPosition()
+    local profile = Options:GetCurrentProfile()
+    local relativeFrame = profile and _G[profile.anchorFrame or "UIParent"]
+    if not relativeFrame then
+        self:Print("Could not save position because the selected anchor frame is unavailable.")
+        return
+    end
+
+    local displayX, displayY = getPointCoordinates(self.displayFrame, profile.framePoint)
+    local anchorX, anchorY = getPointCoordinates(relativeFrame, profile.relativePoint)
+    if not displayX or not displayY or not anchorX or not anchorY then
+        self:Print("Could not save position because Sundered or its anchor has no valid geometry.")
+        return
+    end
+
+    Options:SetAnchor(
+        profile.anchorFrame,
+        profile.framePoint,
+        profile.relativePoint,
+        math.floor(displayX - anchorX + 0.5),
+        math.floor(displayY - anchorY + 0.5)
+    )
+end
+
+-- Returns the display to the center of UIParent.
 function Sundered:ResetDisplayPosition()
     if not self.displayFrame then
         return
     end
 
     self.displayFrame:StopMovingOrSizing()
-    self.displayFrame:ClearAllPoints()
-    self.displayFrame:SetPoint("CENTER")
+    Options:SetAnchor("UIParent", "CENTER", "CENTER", 0, 0)
 end
 
 -- Hides the display without a target or refreshes both views for the current target.
@@ -156,6 +230,5 @@ function Sundered:Update()
     end
     self.displayFrame:Show()
 
-    Icon:Update()
     Bar:Update()
 end

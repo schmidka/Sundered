@@ -9,13 +9,12 @@
 local Addon = LibStub("AceAddon-3.0"):GetAddon("Sundered")
 local Bar = Addon:NewModule("Bar")
 local LSM = LibStub("LibSharedMedia-3.0")
-local sunderArmorSpellName = "Sunder Armor"
 
 local function createSunderDamageCurve(abilities, mobHealthCache, targetLevel, attackerLevel)
     -- Scale the full-health Sunder damage to the target's health percentage.
     local maxHealth = mobHealthCache:EstimateTargetMaxHealth()
     local scale = abilities:ComputeExpectedAbilityEHPDamageScaling(
-        sunderArmorSpellName, attackerLevel, targetLevel
+        "Sunder Armor", attackerLevel, targetLevel
     )
     local maxValue = scale * maxHealth
     local curve = C_CurveUtil.CreateCurve()
@@ -77,11 +76,19 @@ function Bar:Initialize(parent)
     self.frame:SetValue(0)
     self.frame:EnableMouse(true)
     self.frame:RegisterForDrag("LeftButton")
+    self.isDragging = false
     self.frame:SetScript("OnDragStart", function()
-        parent:StartMoving()
+        if not self.options:GetOption("locked") then
+            parent:StartMoving()
+            self.isDragging = true
+        end
     end)
     self.frame:SetScript("OnDragStop", function()
-        parent:StopMovingOrSizing()
+        if self.isDragging then
+            parent:StopMovingOrSizing()
+            self.isDragging = false
+            Addon:SaveDisplayPosition()
+        end
     end)
 
     -- Build the bar's background, Sunder icon, and centered value label.
@@ -89,8 +96,7 @@ function Bar:Initialize(parent)
     background:SetAllPoints()
     background:SetColorTexture(0.15, 0.15, 0.15, 0.9)
 
-    self.icon = self.frame:CreateTexture(nil, "OVERLAY")
-    self.icon:SetTexture(self.abilities:GetAbilityTexture(sunderArmorSpellName))
+    Addon:GetModule("Icon"):Initialize(self.frame)
 
     self.text = self.frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     self.text:SetPoint("CENTER")
@@ -99,7 +105,7 @@ function Bar:Initialize(parent)
     self.compareIndicators = {}
     local indicatorIndex = 0
     for _, spellName in ipairs(self.supportedAbilities) do
-        if spellName ~= sunderArmorSpellName then
+        if spellName ~= "Sunder Armor" then
             indicatorIndex = indicatorIndex + 1
             local indicator = CreateFrame("Frame", nil, self.frame)
             indicator:SetFrameLevel(self.frame:GetFrameLevel() + indicatorIndex)
@@ -148,38 +154,46 @@ function Bar:ApplySize()
     -- Size and center the bar while reserving room for an attached icon if configured.
     local hasIcon = self.iconPosition ~= "NONE"
     self.frame:SetSize(self.width, self.height)
+    self:ApplyTextFont()
     for _, indicator in pairs(self.compareIndicators) do
         indicator.frame:SetHeight(self.height)
     end
     self.frame:ClearAllPoints()
     if self.iconPosition == "LEFT" then
-        self.frame:SetPoint("CENTER", self.parent, "CENTER", self.height / 2, 0)
+        self.frame:SetPoint("CENTER", self.parent, "CENTER", self.iconSize / 2, 0)
     elseif self.iconPosition == "RIGHT" then
-        self.frame:SetPoint("CENTER", self.parent, "CENTER", -self.height / 2, 0)
+        self.frame:SetPoint("CENTER", self.parent, "CENTER", -self.iconSize / 2, 0)
     else
         self.frame:SetPoint("CENTER", self.parent, "CENTER")
     end
-    self.parent:SetSize(self.width + (hasIcon and self.height or 0), self.height)
+    self.parent:SetSize(self.width + (hasIcon and self.iconSize or 0), self.height)
 
-    self.icon:SetSize(self.height, self.height)
-    self.icon:ClearAllPoints()
-    if self.iconPosition == "LEFT" then
-        self.icon:SetPoint("RIGHT", self.frame, "LEFT")
-    elseif self.iconPosition == "RIGHT" then
-        self.icon:SetPoint("LEFT", self.frame, "RIGHT")
-    end
+    local icon = Addon:GetModule("Icon")
+    icon:SetIconSize(self.iconSize)
+    icon:SetBarAnchor(self.iconPosition, self.frame)
 end
 
--- Sets the displayed text size.
-function Bar:SetTextSize(size)
-    local fontPath, _, fontFlags = self.text:GetFont()
-    self.text:SetFont(fontPath, size, fontFlags)
+function Bar:ApplyTextFont()
+    if not self.fontPath or not self.height then
+        return
+    end
+
+    local _, _, fontFlags = self.text:GetFont()
+    local fontSize = math.floor(self.height * 0.85 + 0.5)
+    self.text:SetFont(self.fontPath, fontSize, fontFlags)
 end
 
 -- Sets the displayed text font from LibSharedMedia.
 function Bar:SetFont(font)
-    local _, size, fontFlags = self.text:GetFont()
-    self.text:SetFont(LSM:Fetch("font", font), size, fontFlags)
+    self.fontPath = LSM:Fetch("font", font)
+    self:ApplyTextFont()
+end
+
+-- Sets the size of the optional Sunder Armor icon.
+function Bar:SetIconSize(size)
+    self.iconSize = size
+    Addon:GetModule("Icon"):SetIconSize(size)
+    self:ApplySize()
 end
 
 -- Sets the bar texture from LibSharedMedia.
@@ -203,11 +217,8 @@ end
 function Bar:SetIconPosition(position)
     self.iconPosition = position
     self:ApplySize()
-    if position == "NONE" then
-        self.icon:Hide()
-    else
-        self.icon:Show()
-    end
+    local icon = Addon:GetModule("Icon")
+    icon:SetShown(position ~= "NONE")
 end
 
 -- Updates the bar range, displayed text, and optional ability comparison marker.
@@ -223,11 +234,11 @@ function Bar:Update()
     local text = Addon:AbbreviateDamage(value)
 
     -- Convert enabled comparisons into equivalent Sunder damage thresholds.
-    local sunderRageCost = self.abilities:GetAbilityRageCost(sunderArmorSpellName)
+    local sunderRageCost = self.abilities:GetAbilityRageCost("Sunder Armor")
     local comparisons = {}
     local highestCompareValue = 0
     for _, spellName in ipairs(self.supportedAbilities) do
-        if spellName ~= sunderArmorSpellName then
+        if spellName ~= "Sunder Armor" then
             local optionKey = "compare_" .. spellName:lower():gsub("%s+", "_")
             if self.options:GetOption(optionKey) then
                 local damagePerRage = self.abilities:ComputeExpectedAbilityEHPDamagePerRage(
