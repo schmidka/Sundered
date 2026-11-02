@@ -30,19 +30,19 @@ end
 
 -- Incorporates a public sample into its saved moving average.
 local function updateAverage(stats, key, sample)
-    if sample == nil then
+    if not sample then
         return
     end
 
     local average = stats[key]
-    if average == nil then
+    if not average then
         stats[key] = sample
         return
     end
 
     -- Replace large changes directly, to avoid stale outliers living on.
-    if sample < average / (1 + outlierThreshold)
-        or sample > average * (1 + outlierThreshold)
+    if sample < average / (1 + outlierThreshold) or
+       sample > average * (1 + outlierThreshold)
     then
         stats[key] = sample
         return
@@ -53,8 +53,8 @@ end
 
 -- Reads player attributes from Blizzard APIs. Returns nil if the results are secret.
 local function currentAttackPower()
-    local base, positiveBuffs, negativeBuffs = UnitAttackPower("player")
-    if issecretvalue(base) or issecretvalue(positiveBuffs) or issecretvalue(negativeBuffs) then
+    local base, positiveBuffs, negativeBuffs = scrubsecretvalues(UnitAttackPower("player"))
+    if not base or not positiveBuffs or not negativeBuffs then
         return nil
     end
 
@@ -62,31 +62,25 @@ local function currentAttackPower()
 end
 
 local function currentWeaponDamage()
-    local minimumDamage, maximumDamage, minimumOffHandDamage, maximumOffHandDamage = UnitDamage("player")
-    if issecretvalue(minimumDamage) or issecretvalue(maximumDamage)
-        or issecretvalue(minimumOffHandDamage)
-        or issecretvalue(maximumOffHandDamage)
+    local minDamage, maxDamage, minOffHandDamage, maxOffHandDamage = scrubsecretvalues(UnitDamage("player"))
+    if not minDamage or not maxDamage or not minOffHandDamage or not maxOffHandDamage
     then
         return nil, nil
     end
 
-    return (minimumDamage + maximumDamage) / 2, (minimumOffHandDamage + maximumOffHandDamage) / 2
+    return (minDamage + maxDamage) / 2, (minOffHandDamage + maxOffHandDamage) / 2
 end
 
 local function currentCritChance()
-    local critChance = GetCritChance()
-    if issecretvalue(critChance) then
-        return nil
-    end
-
-    return critChance
+    return scrubsecretvalues(GetCritChance())
 end
 
 -- Reads the player's melee hit bonus for the attack estimates.
 local function currentHitChance()
-    local hitRatingBonus = GetCombatRatingBonus(CR_HIT_MELEE)
-    local hitModifier = GetHitModifier()
-    if issecretvalue(hitRatingBonus) or issecretvalue(hitModifier) then
+    local hitRatingBonus, hitModifier = scrubsecretvalues(
+        GetCombatRatingBonus(CR_HIT_MELEE), GetHitModifier()
+    )
+    if not hitRatingBonus or not hitModifier then
         return nil
     end
 
@@ -95,21 +89,11 @@ end
 
 -- Reads the main-hand speed used by the white-swing Rage estimate.
 local function currentMainHandSpeed()
-    local mainHandSpeed = UnitAttackSpeed("player")
-    if issecretvalue(mainHandSpeed) then
-        return nil
-    end
-
-    return mainHandSpeed
+    return scrubsecretvalues(UnitAttackSpeed("player"))
 end
 
 local function currentShieldBlock()
-    local shieldBlock = GetShieldBlock()
-    if issecretvalue(shieldBlock) then
-        return nil
-    end
-
-    return shieldBlock
+    return scrubsecretvalues(GetShieldBlock())
 end
 
 -- Initializes the saved cache and starts listening for stat sampling events.
