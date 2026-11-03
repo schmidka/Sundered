@@ -24,9 +24,9 @@ I wouldn't call it vibe coded, but of course I am biased. I've been a software e
 
 We can use effective hit points to compare them.
 
-To explain by way of example: say a mob has 1000 HP and a 50% damage reduction from armor. You need to do 2000 "raw" damage to kill the mob, so we say the mob has an 2000 effective hit points. Damaging abilities "hit" EHP directly: if your Mortal Strike's listed damage is 500 then hitting the mob reduces its health by 250, but its EHP by 500.
+To explain by way of example: say a mob has 1000 HP and a 50% damage reduction from armor. You need to do 2000 "raw" damage to kill the mob, so we say the mob has an 2000 effective hit points. Damaging abilities "hit" EHP directly: if your Mortal Strike's listed damage is 500 then hitting the mob reduces its HP by 250, but its EHP by 500.
 
-Sunder also does damage to effective health. Say 1 application of Sunder Armor reduces our mob from 50% reduction to 33%. That reduces the raw damage needed to kill the mob from 2000 HP to 1500 HP. Your Sunder Armor is effectively an attack with 500 listed damage.
+Sunder also does damage to effective health. Say 1 application of Sunder Armor reduces our mob from 50% reduction to 33%. That reduces the EHP of the mob from 2000 to 1500. Your Sunder Armor is _also_ effectively an attack with 500 listed damage.
 
 Obviously the numbers are different in the game, but hopefully the idea is clear.
 
@@ -34,12 +34,14 @@ Obviously the numbers are different in the game, but hopefully the idea is clear
 
 They are! Specifically Sundered needs to know the exact health of a mob to know its effective health, and that's secret. You might think Sundered also needs to know the mob's armor value but for math reasons it turns out you only need the level of the attacker, which isn't secret.
 
-Sundered gets around the limitation of knowing health in a couple of ways:
-- While we can't get current health, we are allowed to scale percent health by a factor. This means we only actually need max health.
-- Max health is still secret, but we can estimate it. Sundered will look at the total damage done to a mob in the Blizzard damage meter after you kill it, and assume that's roughly the health of the mob.
-- We're still not able to look up mobs by a specific identifier like its name or creature ID while in combat, so instead Sundered looks them up by indirect identifiers like level, classification (normal, elite, etc), and current zone that we can check in combat.
+Sundered gets around the limitation of secret health in a simple 5-step process:
+1. We can't access `UnitHealth` but we are allowed to scale percent health by a factor for display. This means we only actually need `UnitHealthMax`.
+2. `UnitHealthMax` is just as secret, but it is fixed for a given creature ID and level. We just need a database of these values. Unfortunately, we don't have such a database yet.
+3. Fortunately, we can try to build the DB on the fly as we go. Sundered will look at the total damage done to a mob in the Blizzard damage meter after you kill it, and assume that's roughly the health of the mob.
+4. We use the Damage Taken estimate to update two decaying averages: one for a mob of that level, and one for a mob of that level and creatureID.
+5. On targeting in combat we look up the current target in the cache based on level and creatureID if possible. If creatureID isn't cached, fall back to the coarser level-only estimate. If level isn't cached, fall back to a hardcoded approximate HP table.
 
-This is not exact. Sundered's estimates are estimates. The mob health estimates get better as you do more murders, but they will never be exact. It's also very new and untested in Forever so I'm sure there's a lot of fun ways it can bug out.
+This is not exact, and things like overkill damage and mob self healing will cause errors. Sundered's estimates are estimates. The mob health estimates get better as you do more murders, but they will never be exact. It's also very new and untested in Forever so I'm sure there's a lot of fun ways it can bug out.
 
 ### Why doesn't the estimated damage value change with the Sunder Armor stack count?
 
