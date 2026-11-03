@@ -6,7 +6,7 @@
     This cache estimates and stores mob health for use by EstimateTargetMaxHealth().
     Estimates are derived from damage meter segments matched to recently targeted mobs.
 
-    Health estimates are cached by creature level and creature ID, with a per-level average for normal creatures.
+    Health estimates are cached by creature level and creature ID, with per-level averages for each classification.
     We write to the cache after a combat session ends, using the damage meter output to estimate max health. Each cache
     entry stores a decaying average of recent samples.
 
@@ -75,9 +75,7 @@ local function updateHealthCache(cache, level, creatureID, classification, sampl
         level
     )
     updateAverage(levelCache, creatureID, sample)
-    if classification == "normal" then
-        updateAverage(levelCache, "normal", sample)
-    end
+    updateAverage(levelCache, classification, sample)
 end
 
 ensureHealthCache()
@@ -105,25 +103,14 @@ local function captureTargetSnapshot()
         return
     end
 
-    -- Try to grab the guid. Will not succeed in combat.
-    local guid = UnitGUID("target")
-    if not guid then
-        return
-    end
-
-    -- Translate the GUID to creature data that we can match against the damage meter entries.
-    local creatureID = C_CreatureInfo.GetCreatureID(guid)
+    local creatureID = scrubsecretvalues(UnitCreatureID("target"))
     local level = UnitLevel("target")
-    local classification = UnitClassification("target")
-    if creatureID <= 0 or level <= 0 then
+    if not creatureID or creatureID <= 0 or level <= 0 then
         return
     end
 
-    targetSnapshots[guid] = {
-        creatureID = creatureID,
-        level = level,
-        classification = classification,
-    }
+    local levels = getCacheTable(targetSnapshots, creatureID)
+    levels[level] = true
 end
 
 -- Estimate mob health from a completed Damage Meter session and update the cache.
@@ -137,7 +124,6 @@ local function cacheCombatSession(combatSession)
         return
     end
 
-    local snapshots = targetSnapshots
     -- There were multiple mob types involved. We cannot get a reliable damage estimate for a single mob, so abort.
     if #combatSources ~= 1 then
         targetSnapshots = {}
@@ -147,44 +133,41 @@ local function cacheCombatSession(combatSession)
     -- Get the data for the one type we killed. If it's not secret then combat is over and we can continue.
     local source = combatSources[1]
     local creatureID = scrubsecretvalues(source.sourceCreatureID)
-    if not creatureID then
+    local classification = scrubsecretvalues(source.classification)
+    if not creatureID or not classification then
         return
     end
 
-    -- Look through the target snapshots for the creature in the damage-meter row.
-    local estimate = scrubsecretvalues(combatSession.totalAmount)
-    local snapshot
+    -- Matching snapshots at multiple levels make the damage-meter estimate ambiguous.
+    local levels = targetSnapshots[creatureID]
+    local level
     local ambiguous = false
+    if levels then
+        for snapshotLevel in pairs(levels) do
+            if level then
+                ambiguous = true
+                break
+            end
+            level = snapshotLevel
+        end
+    end
+
+    local estimate = scrubsecretvalues(combatSession.totalAmount)
 
     if estimate and estimate > 0 then
         -- Reduce the health estimate by an estimate of our overkill damage to reflect expected max health.
         estimate = estimate - estimateOverkillDamage(UnitLevel("Player"))
 
-        -- The damage-meter estimate is ambiguous if matching snapshots have different levels.
-        for _, targetSnapshot in pairs(snapshots) do
-            if targetSnapshot.creatureID == creatureID then
-                if snapshot and (targetSnapshot.level ~= snapshot.level) then
-                    ambiguous = true
-                    break
-                end
-                snapshot = targetSnapshot
-            end
-        end
-
         -- Update the matching level/creature entry when the sample can be attributed unambiguously.
-        if snapshot and not ambiguous and estimate > 0 then
+        if level and not ambiguous and estimate > 0 then
             updateHealthCache(
-                SunderedMobHealthCache, snapshot.level, creatureID, snapshot.classification, estimate
+                SunderedMobHealthCache, level, creatureID, classification, estimate
             )
         end
     end
 
     -- Discard target snapshots for this mob type for future use.
-    for guid, snapshot in pairs(targetSnapshots) do
-        if snapshot.creatureID == creatureID then
-            targetSnapshots[guid] = nil
-        end
-    end
+    targetSnapshots[creatureID] = nil
 end
 
 -- Grab the damage taken session from the in-game damage meter and send it to the cache update function.
@@ -245,28 +228,33 @@ end
 
 -- Estimates target maximum health from its level and creature ID.
 function mobHealthCache:EstimateTargetMaxHealth()
-    ensureHealthCache()
-
     local level = UnitLevel("target")
     local classification = UnitClassification("target")
     local creatureID = scrubsecretvalues(UnitCreatureID("target"))
 
-    local cachedHealth
+    -- Try the most accurate cache: creatureID and level.
+    local cachedHP
     if creatureID then
         local levelCache = SunderedMobHealthCache.byLevelCreatureID[level]
-        cachedHealth = levelCache and levelCache[creatureID]
+        cachedHP = levelCache and levelCache[creatureID]
     end
-    if cachedHealth then
-        return cachedHealth
+    if cachedHP then
+        return cachedHP
     end
 
-    -- Fall back to the normal-mob average for this level, scaled by classification.
+    -- Fall back to the level and classification cache.
     level = math.max(1, math.min(level, 63))
     local levelCache = SunderedMobHealthCache.byLevelCreatureID[level]
-    local baseHealth = levelCache and levelCache.normal
-    if not baseHealth then
-        baseHealth = approximateMaxHealthByLevel[level]
+    cachedHP = levelCache and levelCache[classification]
+    if cachedHP then
+        return cachedHP
+    end
+
+    -- Fall back to the level cache. For non-normal creatures, try scaling up the normal level cache.
+    cachedHP = levelCache and levelCache.normal
+    if not cachedHP then
+        cachedHP = approximateMaxHealthByLevel[level]
     end
     local multiplier = approximateHealthMultiplierByClassification[classification]
-    return baseHealth * multiplier
+    return cachedHP * multiplier
 end
