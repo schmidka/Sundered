@@ -10,7 +10,7 @@
 ## X-Category: Combat
 ## X-License: MPL-2.0
 
-## OptionalDeps: Ace3, LibSharedMedia-3.0
+## OptionalDeps: Ace3, LibSharedMedia-3.0, Masque
 ## X-Embeds: Ace3, LibSharedMedia-3.0
 ## SavedVariables: SunderedDB, SunderedAbilityCache, SunderedMobHealthCache
 #@no-lib-strip@

@@ -50,13 +50,13 @@ end
 
 -- Creates the icon and its stack-count label.
 function Icon:Initialize(parent)
-    self.frame = CreateFrame("Frame", nil, parent)
+    self.frame = CreateFrame("Button", nil, parent)
     self.frame:SetSize(20, 20)
     self.frame:Hide()
 
-    local texture = self.frame:CreateTexture(nil, "ARTWORK")
-    texture:SetAllPoints()
-    texture:SetTexture("Interface\\Icons\\Ability_Warrior_Sunder")
+    self.icon = self.frame:CreateTexture(nil, "ARTWORK")
+    self.icon:SetAllPoints()
+    self.icon:SetTexture("Interface\\Icons\\Ability_Warrior_Sunder")
 
     self.cooldown = CreateFrame("Cooldown", nil, self.frame, "CooldownFrameTemplate")
     self.cooldown:SetAllPoints()
@@ -76,11 +76,24 @@ function Icon:Initialize(parent)
     self.text = self.textFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     self.text:SetPoint("CENTER")
     self.stackColorCurve = createStackColorCurve()
+
+    local masque = LibStub("Masque", true)
+    if masque then
+        self.masqueGroup = masque:Group("Sundered", "Sunder Icon")
+        self.masqueGroup:AddButton(self.frame, {
+            Icon = self.icon,
+            Cooldown = self.cooldown,
+            Count = self.text,
+        }, "Debuff")
+    end
 end
 
 -- Sets the icon's size.
 function Icon:SetIconSize(size)
     self.frame:SetSize(size, size)
+    if self.masqueGroup then
+        self.masqueGroup:SetFrameSize(size, size, self.frame, true)
+    end
     applyWarningBorderSize(self)
     self:ApplyTextFont()
 end

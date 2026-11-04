@@ -96,7 +96,13 @@ function Bar:Initialize(parent)
     background:SetAllPoints()
     background:SetColorTexture(0.15, 0.15, 0.15, 0.9)
 
-    Addon:GetModule("Icon"):Initialize(self.frame)
+    local iconModule = Addon:GetModule("Icon")
+    iconModule:Initialize(self.frame)
+    local masqueGroup
+    local masque = LibStub("Masque", true)
+    if masque then
+        masqueGroup = masque:Group("Sundered", "Ability Notch Icons")
+    end
 
     self.text = self.frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     self.text:SetPoint("CENTER")
@@ -115,9 +121,17 @@ function Bar:Initialize(parent)
             line:SetAllPoints()
             line:SetColorTexture(1, 1, 1, 0.9)
 
-            local icon = indicator:CreateTexture(nil, "OVERLAY")
-            icon:SetSize(16, 16)
-            icon:SetPoint("BOTTOM", indicator, "TOP", 0, 2)
+            local iconButton = CreateFrame("Button", nil, indicator)
+            iconButton:SetSize(16, 16)
+            iconButton:SetPoint("BOTTOM", indicator, "TOP", 0, 2)
+
+            local icon = iconButton:CreateTexture(nil, "ARTWORK")
+            icon:SetAllPoints()
+            if masqueGroup then
+                masqueGroup:AddButton(iconButton, {
+                    Icon = icon,
+                }, "Action")
+            end
 
             indicator:Hide()
             self.compareIndicators[spellName] = {
@@ -169,7 +183,6 @@ function Bar:ApplySize()
     self.parent:SetSize(self.width + (hasIcon and self.iconSize or 0), self.height)
 
     local icon = Addon:GetModule("Icon")
-    icon:SetIconSize(self.iconSize)
     icon:SetBarAnchor(self.iconPosition, self.frame)
 end
 
@@ -286,8 +299,6 @@ function Bar:Update()
         )
         indicator.frame:ClearAllPoints()
         indicator.frame:SetPoint("CENTER", self.frame, "LEFT", position, 0)
-        indicator.icon:ClearAllPoints()
-        indicator.icon:SetPoint("BOTTOM", indicator.frame, "TOP", 0, 2)
         indicator.icon:SetTexture(self.abilities:GetAbilityTexture(comparison.spellName))
         indicator.frame:Show()
     end
