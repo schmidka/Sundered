@@ -1,4 +1,4 @@
-## Interface: 120105
+## Interface: 16001
 
 ## Title: Sundered
 ## Notes: Estimates the damage gain from using Sunder Armor, so you don't have to
