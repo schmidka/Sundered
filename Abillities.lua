@@ -30,6 +30,7 @@ local supportedAbilities = {
     "Whirlwind",
     "Thunder Clap",
     "Heroic Strike",
+    "Cleave",
     "Rend",
     "Revenge",
 }
@@ -44,6 +45,7 @@ local abilityTextures = {
     ["Whirlwind"] = "Interface\\Icons\\Ability_Whirlwind",
     ["Thunder Clap"] = "Interface\\Icons\\Spell_Nature_ThunderClap",
     ["Heroic Strike"] = "Interface\\Icons\\Ability_Rogue_Ambush",
+    ["Cleave"] = "Interface\\Icons\\Ability_Warrior_Cleave",
     ["Rend"] = "Interface\\Icons\\Ability_Gouge",
     ["Revenge"] = "Interface\\Icons\\Ability_Warrior_Revenge",
 }
@@ -115,6 +117,11 @@ local heroicStrikeBonusByRank = {
     11, 21, 32, 54, 78, 100, 128, 157, 196,
 }
 
+-- Base damage by rank for Cleave.
+local cleaveBonusByRank = {
+    5, 10, 18, 32, 50,
+}
+
 -- Base damage by rank for Rend.
 local rendDamageByRank = {
     15, 30, 45, 75, 105, 150, 210,
@@ -155,6 +162,7 @@ local rageCosts = {
     ["Whirlwind"] = 25,
     ["Thunder Clap"] = 20,
     ["Heroic Strike"] = 15,
+    ["Cleave"] = 20,
     ["Rend"] = 10,
     ["Revenge"] = 5,
 }
@@ -335,6 +343,16 @@ local function computeHeroicStrikeEHPDamage(rank, targetLevel)
     return heroicStrikeDamage - computeExpectedWhiteSwingEHPDamage(weaponDamage, targetLevel)
 end
 
+-- Estimates Cleave's total damage to two same-level targets, net of its replaced white swing.
+local function computeCleaveEHPDamage(rank, targetLevel)
+    rank = clamp(rank, 1, 5)
+    local weaponDamage = AttributeCache:GetAverageMainHandDamage()
+    local damagePerTarget = computeExpectedYellowEHPDamage(
+        weaponDamage + cleaveBonusByRank[rank], targetLevel, true
+    )
+    return damagePerTarget * 2 - computeExpectedWhiteSwingEHPDamage(weaponDamage, targetLevel)
+end
+
 -- Rend cannot crit; estimate its bleed damage in armor-mitigated EHP terms.
 local function computeRendEHPDamage(rank, attackerLevel, targetLevel)
     rank = clamp(rank, 1, 7)
@@ -396,6 +414,8 @@ local function computeDirectAbilityEHPDamage(spellName, attackerLevel, targetLev
         return computeThunderClapEHPDamage(GetOption("thunderClapRank"), targetLevel)
     elseif spellName == "Heroic Strike" then
         return computeHeroicStrikeEHPDamage(GetOption("heroicStrikeRank"), targetLevel)
+    elseif spellName == "Cleave" then
+        return computeCleaveEHPDamage(GetOption("cleaveRank"), targetLevel)
     elseif spellName == "Rend" then
         return computeRendEHPDamage(GetOption("rendRank"), attackerLevel, targetLevel)
     elseif spellName == "Revenge" then
@@ -453,7 +473,7 @@ function Abilities:GetAbilityRageCost(spellName, attackerLevel, targetLevel)
         rageCost = rageCost - GetOption("unbridledWrathRank") * 0.12
     end
 
-    if spellName == "Heroic Strike" then
+    if spellName == "Heroic Strike" or spellName == "Cleave" then
         attackerLevel = attackerLevel or AttributeCache:GetWeaponSkill() / 5
         targetLevel = targetLevel or attackerLevel
         rageCost = rageCost + computeExpectedWhiteSwingRage(attackerLevel, targetLevel)

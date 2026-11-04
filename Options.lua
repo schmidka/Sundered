@@ -63,6 +63,7 @@ local defaults = {
         shieldSlamRank = 4,
         thunderClapRank = 6,
         heroicStrikeRank = 9,
+        cleaveRank = 5,
         rendRank = 7,
         revengeRank = 6,
     },
@@ -842,6 +843,21 @@ function Options:OnInitialize()
                         end,
                         set = function(_, value)
                             self:SetOption("revengeRank", value)
+                        end,
+                    },
+                    cleaveRank = {
+                        type = "range",
+                        name = "Cleave Rank",
+                        desc = "Highest Cleave rank available to the character.",
+                        min = 1,
+                        max = 5,
+                        step = 1,
+                        order = comparisonCount + 20,
+                        get = function()
+                            return self.db.profile.cleaveRank
+                        end,
+                        set = function(_, value)
+                            self:SetOption("cleaveRank", value)
                         end,
                     },
                 },

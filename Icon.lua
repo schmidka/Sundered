@@ -199,8 +199,7 @@ function Icon:Update()
     end
     if not aura then
         self:ClearAuraDuration()
-        self.text:SetText("0")
-        self.text:SetTextColor(1, 1, 1, 1)
+        self.text:SetText("")
         return
     end
 
